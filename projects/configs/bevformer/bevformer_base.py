@@ -46,6 +46,7 @@ model = dict(
         num_stages=4,
         out_indices=(1, 2, 3),
         frozen_stages=1,
+        # "BN2d and DCNv2 in mmcv, fallback_on_stride used in resnet.py in mmdet"
         norm_cfg=dict(type='BN2d', requires_grad=False),
         norm_eval=True,
         style='caffe',

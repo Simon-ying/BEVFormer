@@ -2,18 +2,22 @@ import copy
 import torch
 import torch.nn as nn
 
-from mmcv.cnn import Linear, bias_init_with_prob
-from mmcv.utils import TORCH_VERSION, digit_version
-from mmdet.core import (multi_apply, multi_apply, reduce_mean)
-from mmdet.models.utils.transformer import inverse_sigmoid
-from mmdet.models import HEADS
+from mmcv.cnn import Linear
+from mmengine.model import bias_init_with_prob
+from mmengine.utils.dl_utils import TORCH_VERSION
+from mmengine.utils import digit_version
+from mmdet.models.utils import multi_apply
+from mmdet.utils import reduce_mean
+from mmdet.models.layers.transformer import inverse_sigmoid
+from mmdet.registry import MODELS
 from mmdet.models.dense_heads import DETRHead
-from mmdet3d.core.bbox.coders import build_bbox_coder
+
+from mmdet3d.registry import TASK_UTILS
 from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
-from mmcv.runner import force_fp32, auto_fp16
+# from mmcv.runner import force_fp32, auto_fp16
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class BEVFormerHead(DETRHead):
     """Head of Detr3D.
     Args:
@@ -26,41 +30,36 @@ class BEVFormerHead(DETRHead):
         bev_h, bev_w (int): spatial shape of BEV queries.
     """
 
-    def __init__(self,
-                 *args,
-                 with_box_refine=False,
-                 as_two_stage=False,
-                 transformer=None,
-                 bbox_coder=None,
-                 num_cls_fcs=2,
-                 code_weights=None,
-                 bev_h=30,
-                 bev_w=30,
-                 **kwargs):
+    def __init__(
+            self,
+            *args,
+            with_box_refine=False,
+            as_two_stage=False,
+            transformer=None,
+            bbox_coder=None,
+            num_cls_fcs=2,
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2],
+            code_size=10,
+            bev_h=30,
+            bev_w=30,
+            **kwargs):
 
         self.bev_h = bev_h
         self.bev_w = bev_w
-        self.fp16_enabled = False
 
         self.with_box_refine = with_box_refine
         self.as_two_stage = as_two_stage
         if self.as_two_stage:
             transformer['as_two_stage'] = self.as_two_stage
-        if 'code_size' in kwargs:
-            self.code_size = kwargs['code_size']
-        else:
-            self.code_size = 10
-        if code_weights is not None:
-            self.code_weights = code_weights
-        else:
-            self.code_weights = [1.0, 1.0, 1.0,
-                                 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2]
+        self.code_size = code_size
+        self.code_weights = code_weights
 
-        self.bbox_coder = build_bbox_coder(bbox_coder)
+        self.bbox_coder = TASK_UTILS.build(bbox_coder)
         self.pc_range = self.bbox_coder.pc_range
         self.real_w = self.pc_range[3] - self.pc_range[0]
         self.real_h = self.pc_range[4] - self.pc_range[1]
         self.num_cls_fcs = num_cls_fcs - 1
+        # TODO: there is no transformer in DETRHead
         super(BEVFormerHead, self).__init__(
             *args, transformer=transformer, **kwargs)
         self.code_weights = nn.Parameter(torch.tensor(
@@ -114,7 +113,6 @@ class BEVFormerHead(DETRHead):
             for m in self.cls_branches:
                 nn.init.constant_(m[-1].bias, bias_init)
 
-    @auto_fp16(apply_to=('mlvl_feats'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None,  only_bev=False):
         """Forward function.
         Args:
@@ -392,7 +390,6 @@ class BEVFormerHead(DETRHead):
             loss_bbox = torch.nan_to_num(loss_bbox)
         return loss_cls, loss_bbox
 
-    @force_fp32(apply_to=('preds_dicts'))
     def loss(self,
              gt_bboxes_list,
              gt_labels_list,
@@ -479,7 +476,6 @@ class BEVFormerHead(DETRHead):
             num_dec_layer += 1
         return loss_dict
 
-    @force_fp32(apply_to=('preds_dicts'))
     def get_bboxes(self, preds_dicts, img_metas, rescale=False):
         """Generate bboxes from bbox head predictions.
         Args:
@@ -509,7 +505,7 @@ class BEVFormerHead(DETRHead):
         return ret_list
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class BEVFormerHead_GroupDETR(BEVFormerHead):
     def __init__(self,
                  *args,
