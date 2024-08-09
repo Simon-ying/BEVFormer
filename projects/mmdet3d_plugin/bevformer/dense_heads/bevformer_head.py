@@ -33,6 +33,14 @@ class BEVFormerHead(DETRHead):
     def __init__(
             self,
             *args,
+            num_classes,
+            in_channels,
+            num_query=100,
+            sync_cls_avg_factor=False,
+            positional_encoding=dict(
+                     type='SinePositionalEncoding',
+                     num_feats=128,
+                     normalize=True),
             with_box_refine=False,
             as_two_stage=False,
             transformer=None,
@@ -46,7 +54,7 @@ class BEVFormerHead(DETRHead):
 
         self.bev_h = bev_h
         self.bev_w = bev_w
-
+        self.num_query = num_query
         self.with_box_refine = with_box_refine
         self.as_two_stage = as_two_stage
         if self.as_two_stage:
@@ -59,9 +67,23 @@ class BEVFormerHead(DETRHead):
         self.real_w = self.pc_range[3] - self.pc_range[0]
         self.real_h = self.pc_range[4] - self.pc_range[1]
         self.num_cls_fcs = num_cls_fcs - 1
-        # TODO: there is no transformer in DETRHead
+
+        self.transformer = MODELS.build(transformer)
+        assert 'num_feats' in positional_encoding
+        num_feats = positional_encoding['num_feats']
+        assert num_feats * 2 == self.embed_dims, 'embed_dims should' \
+            f' be exactly 2 times of num_feats. Found {self.embed_dims}' \
+            f' and {num_feats}.'
+        
+        self.positional_encoding = TASK_UTILS.build(positional_encoding)
+
         super(BEVFormerHead, self).__init__(
-            *args, transformer=transformer, **kwargs)
+            *args,
+            num_classes=num_classes,
+            embed_dims=in_channels,
+            sync_cls_avg_factor=sync_cls_avg_factor,
+            **kwargs)
+        
         self.code_weights = nn.Parameter(torch.tensor(
             self.code_weights, requires_grad=False), requires_grad=False)
 

@@ -41,7 +41,7 @@ model = dict(
     use_grid_mask=True,
     video_test_mode=True,
     img_backbone=dict(
-        type='ResNet',
+        type='mmdet.ResNet',
         depth=101,
         num_stages=4,
         out_indices=(1, 2, 3),
@@ -53,7 +53,7 @@ model = dict(
         dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False), # original DCNv2 will print log when perform load_state_dict
         stage_with_dcn=(False, False, True, True)),
     img_neck=dict(
-        type='FPN',
+        type='mmdet.FPN',
         in_channels=[512, 1024, 2048],
         out_channels=_dim_,
         start_level=0,
@@ -140,13 +140,13 @@ model = dict(
             col_num_embed=bev_w_,
             ),
         loss_cls=dict(
-            type='FocalLoss',
+            type='mmdet.FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
             loss_weight=2.0),
-        loss_bbox=dict(type='L1Loss', loss_weight=0.25),
-        loss_iou=dict(type='GIoULoss', loss_weight=0.0)),
+        loss_bbox=dict(type='mmdet.L1Loss', loss_weight=0.25),
+        loss_iou=dict(type='mmdet.GIoULoss', loss_weight=0.0)),
     # model training and testing settings
     train_cfg=dict(pts=dict(
         grid_size=[512, 512, 1],

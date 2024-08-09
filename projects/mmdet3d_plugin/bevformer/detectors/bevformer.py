@@ -5,9 +5,8 @@
 # ---------------------------------------------
 
 import torch
-from mmcv.runner import force_fp32, auto_fp16
-from mmdet.models import DETECTORS
-from mmdet3d.core import bbox3d2result
+from mmdet.registry import MODELS
+from mmdet3d.structures import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
 import time
@@ -17,7 +16,7 @@ import mmdet3d
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class BEVFormer(MVXTwoStageDetector):
     """BEVFormer.
     Args:
@@ -26,7 +25,6 @@ class BEVFormer(MVXTwoStageDetector):
 
     def __init__(self,
                  use_grid_mask=False,
-                 pts_voxel_layer=None,
                  pts_voxel_encoder=None,
                  pts_middle_encoder=None,
                  pts_fusion_layer=None,
@@ -39,20 +37,20 @@ class BEVFormer(MVXTwoStageDetector):
                  img_rpn_head=None,
                  train_cfg=None,
                  test_cfg=None,
-                 pretrained=None,
-                 video_test_mode=False
-                 ):
+                 init_cfg=None,
+                 data_preprocessor=None,
+                 video_test_mode=False,
+                 **kwargs):
 
         super(BEVFormer,
-              self).__init__(pts_voxel_layer, pts_voxel_encoder,
+              self).__init__(pts_voxel_encoder,
                              pts_middle_encoder, pts_fusion_layer,
                              img_backbone, pts_backbone, img_neck, pts_neck,
                              pts_bbox_head, img_roi_head, img_rpn_head,
-                             train_cfg, test_cfg, pretrained)
+                             train_cfg, test_cfg, init_cfg, data_preprocessor, **kwargs)
         self.grid_mask = GridMask(
             True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
         self.use_grid_mask = use_grid_mask
-        self.fp16_enabled = False
 
         # temporal
         self.video_test_mode = video_test_mode
@@ -63,12 +61,16 @@ class BEVFormer(MVXTwoStageDetector):
             'prev_angle': 0,
         }
 
-
     def extract_img_feat(self, img, img_metas, len_queue=None):
-        """Extract features of images."""
+        """Extract features of images.
+        
+        Args:
+            img: [bs, num_views, channel, H, W]
+            len_queue: 
+        """
         B = img.size(0)
         if img is not None:
-            
+
             # input_shape = img.shape[-2:]
             # # update real input shape of each single img
             # for img_meta in img_metas:
@@ -94,19 +96,19 @@ class BEVFormer(MVXTwoStageDetector):
         for img_feat in img_feats:
             BN, C, H, W = img_feat.size()
             if len_queue is not None:
-                img_feats_reshaped.append(img_feat.view(int(B/len_queue), len_queue, int(BN / B), C, H, W))
+                img_feats_reshaped.append(img_feat.view(
+                    int(B/len_queue), len_queue, int(BN / B), C, H, W))
             else:
-                img_feats_reshaped.append(img_feat.view(B, int(BN / B), C, H, W))
+                img_feats_reshaped.append(
+                    img_feat.view(B, int(BN / B), C, H, W))
         return img_feats_reshaped
 
-    @auto_fp16(apply_to=('img'))
     def extract_feat(self, img, img_metas=None, len_queue=None):
         """Extract features from images and points."""
 
         img_feats = self.extract_img_feat(img, img_metas, len_queue=len_queue)
-        
-        return img_feats
 
+        return img_feats
 
     def forward_pts_train(self,
                           pts_feats,
@@ -154,7 +156,7 @@ class BEVFormer(MVXTwoStageDetector):
             return self.forward_train(**kwargs)
         else:
             return self.forward_test(**kwargs)
-    
+
     def obtain_history_bev(self, imgs_queue, img_metas_list):
         """Obtain history BEV features iteratively. To save GPU memory, gradients are not calculated.
         """
@@ -164,7 +166,8 @@ class BEVFormer(MVXTwoStageDetector):
             prev_bev = None
             bs, len_queue, num_cams, C, H, W = imgs_queue.shape
             imgs_queue = imgs_queue.reshape(bs*len_queue, num_cams, C, H, W)
-            img_feats_list = self.extract_feat(img=imgs_queue, len_queue=len_queue)
+            img_feats_list = self.extract_feat(
+                img=imgs_queue, len_queue=len_queue)
             for i in range(len_queue):
                 img_metas = [each[i] for each in img_metas_list]
                 if not img_metas[0]['prev_bev_exists']:
@@ -176,7 +179,6 @@ class BEVFormer(MVXTwoStageDetector):
             self.train()
             return prev_bev
 
-    @auto_fp16(apply_to=('img', 'points'))
     def forward_train(self,
                       points=None,
                       img_metas=None,
@@ -205,7 +207,7 @@ class BEVFormer(MVXTwoStageDetector):
             gt_bboxes (list[torch.Tensor], optional): Ground truth 2D boxes in
                 images. Defaults to None.
             img (torch.Tensor optional): Images of each sample with shape
-                (N, C, H, W). Defaults to None.
+                (bs, len_queue, num_cams, C, H, W). Defaults to None.
             proposals ([list[torch.Tensor], optional): Predicted proposals
                 used for training Fast RCNN. Defaults to None.
             gt_bboxes_ignore (list[torch.Tensor], optional): Ground truth
@@ -213,7 +215,7 @@ class BEVFormer(MVXTwoStageDetector):
         Returns:
             dict: Losses of different branches.
         """
-        
+
         len_queue = img.size(1)
         prev_img = img[:, :-1, ...]
         img = img[:, -1, ...]
