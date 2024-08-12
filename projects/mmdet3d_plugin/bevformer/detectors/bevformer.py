@@ -43,11 +43,11 @@ class BEVFormer(MVXTwoStageDetector):
                  **kwargs):
 
         super(BEVFormer,
-              self).__init__(pts_voxel_encoder,
-                             pts_middle_encoder, pts_fusion_layer,
-                             img_backbone, pts_backbone, img_neck, pts_neck,
-                             pts_bbox_head, img_roi_head, img_rpn_head,
-                             train_cfg, test_cfg, init_cfg, data_preprocessor, **kwargs)
+              self).__init__(pts_voxel_encoder, pts_middle_encoder,
+                             pts_fusion_layer, img_backbone, pts_backbone,
+                             img_neck, pts_neck, pts_bbox_head, img_roi_head,
+                             img_rpn_head, train_cfg, test_cfg, init_cfg,
+                             data_preprocessor, **kwargs)
         self.grid_mask = GridMask(
             True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
         self.use_grid_mask = use_grid_mask
@@ -63,7 +63,7 @@ class BEVFormer(MVXTwoStageDetector):
 
     def extract_img_feat(self, img, img_metas, len_queue=None):
         """Extract features of images.
-        
+
         Args:
             img: [bs, num_views, channel, H, W]
             len_queue: 
@@ -71,19 +71,13 @@ class BEVFormer(MVXTwoStageDetector):
         B = img.size(0)
         if img is not None:
 
-            # input_shape = img.shape[-2:]
-            # # update real input shape of each single img
-            # for img_meta in img_metas:
-            #     img_meta.update(input_shape=input_shape)
-
             if img.dim() == 5 and img.size(0) == 1:
                 img.squeeze_()
             elif img.dim() == 5 and img.size(0) > 1:
                 B, N, C, H, W = img.size()
-                img = img.reshape(B * N, C, H, W)
+                img = img.view(B * N, C, H, W)
             if self.use_grid_mask:
                 img = self.grid_mask(img)
-
             img_feats = self.img_backbone(img)
             if isinstance(img_feats, dict):
                 img_feats = list(img_feats.values())
@@ -97,10 +91,10 @@ class BEVFormer(MVXTwoStageDetector):
             BN, C, H, W = img_feat.size()
             if len_queue is not None:
                 img_feats_reshaped.append(img_feat.view(
-                    int(B/len_queue), len_queue, int(BN / B), C, H, W))
+                    B // len_queue, len_queue, BN // B, C, H, W))
             else:
                 img_feats_reshaped.append(
-                    img_feat.view(B, int(BN / B), C, H, W))
+                    img_feat.view(B, BN // B, C, H, W))
         return img_feats_reshaped
 
     def extract_feat(self, img, img_metas=None, len_queue=None):
@@ -142,21 +136,6 @@ class BEVFormer(MVXTwoStageDetector):
         dummy_metas = None
         return self.forward_test(img=img, img_metas=[[dummy_metas]])
 
-    def forward(self, return_loss=True, **kwargs):
-        """Calls either forward_train or forward_test depending on whether
-        return_loss=True.
-        Note this setting will change the expected inputs. When
-        `return_loss=True`, img and img_metas are single-nested (i.e.
-        torch.Tensor and list[dict]), and when `resturn_loss=False`, img and
-        img_metas should be double nested (i.e.  list[torch.Tensor],
-        list[list[dict]]), with the outer list indicating test time
-        augmentations.
-        """
-        if return_loss:
-            return self.forward_train(**kwargs)
-        else:
-            return self.forward_test(**kwargs)
-
     def obtain_history_bev(self, imgs_queue, img_metas_list):
         """Obtain history BEV features iteratively. To save GPU memory, gradients are not calculated.
         """
@@ -165,33 +144,32 @@ class BEVFormer(MVXTwoStageDetector):
         with torch.no_grad():
             prev_bev = None
             bs, len_queue, num_cams, C, H, W = imgs_queue.shape
-            imgs_queue = imgs_queue.reshape(bs*len_queue, num_cams, C, H, W)
+            imgs_queue = imgs_queue.view(bs*len_queue, num_cams, C, H, W)
             img_feats_list = self.extract_feat(
                 img=imgs_queue, len_queue=len_queue)
             for i in range(len_queue):
                 img_metas = [each[i] for each in img_metas_list]
                 if not img_metas[0]['prev_bev_exists']:
                     prev_bev = None
-                # img_feats = self.extract_feat(img=img, img_metas=img_metas)
                 img_feats = [each_scale[:, i] for each_scale in img_feats_list]
                 prev_bev = self.pts_bbox_head(
                     img_feats, img_metas, prev_bev, only_bev=True)
             self.train()
             return prev_bev
 
-    def forward_train(self,
-                      points=None,
-                      img_metas=None,
-                      gt_bboxes_3d=None,
-                      gt_labels_3d=None,
-                      gt_labels=None,
-                      gt_bboxes=None,
-                      img=None,
-                      proposals=None,
-                      gt_bboxes_ignore=None,
-                      img_depth=None,
-                      img_mask=None,
-                      ):
+    def loss(self,
+             points=None,
+             img_metas=None,
+             gt_bboxes_3d=None,
+             gt_labels_3d=None,
+             gt_labels=None,
+             gt_bboxes=None,
+             img=None,
+             proposals=None,
+             gt_bboxes_ignore=None,
+             img_depth=None,
+             img_mask=None,
+             ):
         """Forward training function.
         Args:
             points (list[torch.Tensor], optional): Points of each sample.
@@ -235,7 +213,7 @@ class BEVFormer(MVXTwoStageDetector):
         losses.update(losses_pts)
         return losses
 
-    def forward_test(self, img_metas, img=None, **kwargs):
+    def predict(self, img_metas, img=None, **kwargs):
         for var, name in [(img_metas, 'img_metas')]:
             if not isinstance(var, list):
                 raise TypeError('{} must be a list, but got {}'.format(

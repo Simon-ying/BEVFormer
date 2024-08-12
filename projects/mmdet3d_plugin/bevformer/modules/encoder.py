@@ -9,19 +9,19 @@ import numpy as np
 import torch
 import copy
 import warnings
-from mmcv.cnn.bricks.registry import (ATTENTION,
-                                      TRANSFORMER_LAYER,
-                                      TRANSFORMER_LAYER_SEQUENCE)
+from mmengine.registry import MODELS
+
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
-from mmcv.runner import force_fp32, auto_fp16
-from mmcv.utils import TORCH_VERSION, digit_version
+from mmengine.utils import digit_version
+from mmengine.utils.dl_utils import TORCH_VERSION
+
 from mmcv.utils import ext_loader
 from .custom_base_transformer_layer import MyCustomBaseTransformerLayer
 ext_module = ext_loader.load_ext(
     '_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
 
 
-@TRANSFORMER_LAYER_SEQUENCE.register_module()
+@MODELS.register_module()
 class BEVFormerEncoder(TransformerLayerSequence):
 
     """
@@ -41,7 +41,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
 
         self.num_points_in_pillar = num_points_in_pillar
         self.pc_range = pc_range
-        self.fp16_enabled = False
 
     @staticmethod
     def get_reference_points(H, W, Z=8, num_points_in_pillar=4, dim='3d', bs=1, device='cuda', dtype=torch.float):
@@ -85,7 +84,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
             return ref_2d
 
     # This function must use fp32!!!
-    @force_fp32(apply_to=('reference_points', 'img_metas'))
     def point_sampling(self, reference_points, pc_range,  img_metas):
         # NOTE: close tf32 here.
         allow_tf32 = torch.backends.cuda.matmul.allow_tf32
@@ -148,7 +146,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
 
         return reference_points_cam, bev_mask
 
-    @auto_fp16()
     def forward(self,
                 bev_query,
                 key,
@@ -239,7 +236,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
         return output
 
 
-@TRANSFORMER_LAYER.register_module()
+@MODELS.register_module() 
 class BEVFormerLayer(MyCustomBaseTransformerLayer):
     """Implements decoder layer in DETR transformer.
     Args:
@@ -411,7 +408,7 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
 from mmcv.cnn.bricks.transformer import build_feedforward_network, build_attention
 
 
-@TRANSFORMER_LAYER.register_module()
+@MODELS.register_module()
 class MM_BEVFormerLayer(MyCustomBaseTransformerLayer):
     """multi-modality fusion layer.
     """

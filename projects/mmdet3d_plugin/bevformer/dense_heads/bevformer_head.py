@@ -38,9 +38,9 @@ class BEVFormerHead(DETRHead):
             num_query=100,
             sync_cls_avg_factor=False,
             positional_encoding=dict(
-                     type='SinePositionalEncoding',
-                     num_feats=128,
-                     normalize=True),
+                type='SinePositionalEncoding',
+                num_feats=128,
+                normalize=True),
             with_box_refine=False,
             as_two_stage=False,
             transformer=None,
@@ -74,7 +74,7 @@ class BEVFormerHead(DETRHead):
         assert num_feats * 2 == self.embed_dims, 'embed_dims should' \
             f' be exactly 2 times of num_feats. Found {self.embed_dims}' \
             f' and {num_feats}.'
-        
+
         self.positional_encoding = TASK_UTILS.build(positional_encoding)
 
         super(BEVFormerHead, self).__init__(
@@ -83,7 +83,7 @@ class BEVFormerHead(DETRHead):
             embed_dims=in_channels,
             sync_cls_avg_factor=sync_cls_avg_factor,
             **kwargs)
-        
+
         self.code_weights = nn.Parameter(torch.tensor(
             self.code_weights, requires_grad=False), requires_grad=False)
 
@@ -159,7 +159,7 @@ class BEVFormerHead(DETRHead):
         bev_mask = torch.zeros((bs, self.bev_h, self.bev_w),
                                device=bev_queries.device).to(dtype)
         bev_pos = self.positional_encoding(bev_mask).to(dtype)
-
+        # bev_pos: [bs, num_feats*2, h, w].
         if only_bev:  # only use encoder to obtain BEV features, TODO: refine the workaround
             return self.transformer.get_bev_features(
                 mlvl_feats,
@@ -543,7 +543,8 @@ class BEVFormerHead_GroupDETR(BEVFormerHead):
         dtype = mlvl_feats[0].dtype
         object_query_embeds = self.query_embedding.weight.to(dtype)
         if not self.training:  # NOTE: Only difference to bevformer head
-            object_query_embeds = object_query_embeds[:self.num_query // self.group_detr]
+            object_query_embeds = object_query_embeds[:
+                                                      self.num_query // self.group_detr]
         bev_queries = self.bev_embedding.weight.to(dtype)
 
         bev_mask = torch.zeros((bs, self.bev_h, self.bev_w),
@@ -659,7 +660,7 @@ class BEVFormerHead_GroupDETR(BEVFormerHead):
         all_bbox_preds = preds_dicts['all_bbox_preds']
         enc_cls_scores = preds_dicts['enc_cls_scores']
         enc_bbox_preds = preds_dicts['enc_bbox_preds']
-        assert enc_cls_scores is None and enc_bbox_preds is None 
+        assert enc_cls_scores is None and enc_bbox_preds is None
 
         num_dec_layers = len(all_cls_scores)
         device = gt_labels_list[0].device
@@ -684,8 +685,10 @@ class BEVFormerHead_GroupDETR(BEVFormerHead):
         for group_index in range(self.group_detr):
             group_query_start = group_index * num_query_per_group
             group_query_end = (group_index+1) * num_query_per_group
-            group_cls_scores =  all_cls_scores[:, :,group_query_start:group_query_end, :]
-            group_bbox_preds = all_bbox_preds[:, :,group_query_start:group_query_end, :]
+            group_cls_scores = all_cls_scores[:, :,
+                                              group_query_start:group_query_end, :]
+            group_bbox_preds = all_bbox_preds[:, :,
+                                              group_query_start:group_query_end, :]
             losses_cls, losses_bbox = multi_apply(
                 self.loss_single, group_cls_scores, group_bbox_preds,
                 all_gt_bboxes_list, all_gt_labels_list,
@@ -695,7 +698,9 @@ class BEVFormerHead_GroupDETR(BEVFormerHead):
             # loss from other decoder layers
             num_dec_layer = 0
             for loss_cls_i, loss_bbox_i in zip(losses_cls[:-1], losses_bbox[:-1]):
-                loss_dict[f'd{num_dec_layer}.loss_cls'] += loss_cls_i / self.group_detr
-                loss_dict[f'd{num_dec_layer}.loss_bbox'] += loss_bbox_i / self.group_detr
+                loss_dict[f'd{num_dec_layer}.loss_cls'] += loss_cls_i / \
+                    self.group_detr
+                loss_dict[f'd{num_dec_layer}.loss_bbox'] += loss_bbox_i / \
+                    self.group_detr
                 num_dec_layer += 1
         return loss_dict
