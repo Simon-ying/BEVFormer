@@ -58,7 +58,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
         operation_order (tuple[str]): The execution order of operation
             in transformer. Such as ('self_attn', 'norm', 'ffn', 'norm').
             Support `prenorm` when you specifying first element as `norm`.
-            Default：None.
+            Default: None.
         norm_cfg (dict): Config dict for normalization layer.
             Default: dict(type='LN').
         init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
@@ -124,6 +124,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
         self.pre_norm = operation_order[0] == 'norm'
         self.attentions = ModuleList()
 
+        # TODO: potentially cause error in self.batch_first, True for default
         index = 0
         for operation_name in operation_order:
             if operation_name in ['self_attn', 'cross_attn']:

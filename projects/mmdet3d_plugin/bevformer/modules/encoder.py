@@ -94,7 +94,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
         for img_meta in img_metas:
             lidar2img.append(img_meta['lidar2img'])
         lidar2img = np.asarray(lidar2img)
-        lidar2img = reference_points.new_tensor(lidar2img)  # (B, N, 4, 4)
+        lidar2img = reference_points.new_tensor(lidar2img) # (bs, num_points_in_pillar, W*H, 3)
         reference_points = reference_points.clone()
 
         reference_points[..., 0:1] = reference_points[..., 0:1] * \
@@ -107,7 +107,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
         reference_points = torch.cat(
             (reference_points, torch.ones_like(reference_points[..., :1])), -1)
 
-        reference_points = reference_points.permute(1, 0, 2, 3)
+        reference_points = reference_points.permute(1, 0, 2, 3) # (num_points_in_pillar, bs, W*H, 3)
         D, B, num_query = reference_points.size()[:3]
         num_cam = lidar2img.size(1)
 
@@ -190,6 +190,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
         reference_points_cam, bev_mask = self.point_sampling(
             ref_3d, self.pc_range, kwargs['img_metas'])
 
+        # [bs, W*H, 1, 2]
         # bug: this code should be 'shift_ref_2d = ref_2d.clone()', we keep this bug for reproducing our results in paper.
         shift_ref_2d = ref_2d.clone()
         shift_ref_2d += shift[:, None, None, :]
@@ -250,12 +251,12 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
             in ffn. Default 0.0.
         operation_order (tuple[str]): The execution order of operation
             in transformer. Such as ('self_attn', 'norm', 'ffn', 'norm').
-            Default：None
+            Default: None
         act_cfg (dict): The activation config for FFNs. Default: `LN`
         norm_cfg (dict): Config dict for normalization layer.
             Default: `LN`.
         ffn_num_fcs (int): The number of fully-connected layers in FFNs.
-            Default：2.
+            Default: 2.
     """
 
     def __init__(self,
