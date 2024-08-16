@@ -5,20 +5,18 @@
 # ---------------------------------------------
 
 from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
-import cv2 as cv
-import copy
 import warnings
-from matplotlib import pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from mmengine.model import BaseModule, constant_init, xavier_init
-from mmengine.registry import MODELS
+from mmengine.model import BaseModule, ModuleList, constant_init, xavier_init
+from mmdet.registry import MODELS
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
 import math
 from mmengine.utils import deprecated_api_warning
-
+from mmcv.cnn import build_norm_layer
+from torch import Tensor
+from mmdet.utils import OptConfigType
+from mmcv.cnn.bricks.transformer import FFN, MultiheadAttention
 from mmcv.utils import ext_loader
 from .multi_scale_deformable_attn_function import MultiScaleDeformableAttnFunction_fp32, \
     MultiScaleDeformableAttnFunction_fp16
@@ -57,7 +55,6 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
     def __init__(self, *args, return_intermediate=False, **kwargs):
         super(DetectionTransformerDecoder, self).__init__(*args, **kwargs)
         self.return_intermediate = return_intermediate
-        self.fp16_enabled = False
 
     def forward(self,
                 query,
@@ -124,7 +121,147 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
 
         return output, reference_points
 
+@MODELS.register_module()
+class DetrTransformerDecoderLayer(BaseModule):
+    """Implements decoder layer in DETR transformer.
 
+    Args:
+        self_attn_cfg (:obj:`ConfigDict` or dict, optional): Config for self
+            attention.
+        cross_attn_cfg (:obj:`ConfigDict` or dict, optional): Config for cross
+            attention.
+        ffn_cfg (:obj:`ConfigDict` or dict, optional): Config for FFN.
+        norm_cfg (:obj:`ConfigDict` or dict, optional): Config for
+            normalization layers. All the layers will share the same
+            config. Defaults to `LN`.
+        init_cfg (:obj:`ConfigDict` or dict, optional): Config to control
+            the initialization. Defaults to None.
+    """
+
+    def __init__(self,
+                 self_attn_cfg: OptConfigType = dict(
+                     embed_dims=256,
+                     num_heads=8,
+                     dropout=0.0,
+                     batch_first=True),
+                 cross_attn_cfg: OptConfigType = dict(
+                     embed_dims=256,
+                     num_heads=8,
+                     dropout=0.0,
+                     batch_first=True),
+                 ffn_cfg: OptConfigType = dict(
+                     embed_dims=256,
+                     feedforward_channels=1024,
+                     num_fcs=2,
+                     ffn_drop=0.,
+                     act_cfg=dict(type='ReLU', inplace=True),
+                 ),
+                 norm_cfg: OptConfigType = dict(type='LN'),
+                 init_cfg: OptConfigType = None,
+                 pre_norm: bool = False) -> None:
+
+        super().__init__(init_cfg=init_cfg)
+        self.pre_norm = pre_norm
+        self.self_attn_cfg = self_attn_cfg
+        self.cross_attn_cfg = cross_attn_cfg
+        if 'batch_first' not in self.self_attn_cfg:
+            self.self_attn_cfg['batch_first'] = True
+        else:
+            assert self.self_attn_cfg['batch_first'] is True, 'First \
+            dimension of all DETRs in mmdet is `batch`, \
+            please set `batch_first` flag.'
+
+        if 'batch_first' not in self.cross_attn_cfg:
+            self.cross_attn_cfg['batch_first'] = True
+        else:
+            assert self.cross_attn_cfg['batch_first'] is True, 'First \
+            dimension of all DETRs in mmdet is `batch`, \
+            please set `batch_first` flag.'
+
+        self.ffn_cfg = ffn_cfg
+        self.norm_cfg = norm_cfg
+        self._init_layers()
+
+    def _init_layers(self) -> None:
+        """Initialize self-attention, FFN, and normalization."""
+        if self.self_attn_cfg["type"] == "MultiheadAttention":
+            self.self_attn_cfg.pop("type")
+            self.self_attn = MultiheadAttention(**self.self_attn_cfg)
+        else:
+            self.self_attn = MODELS.build(self.self_attn_cfg)
+        self.cross_attn = MODELS.build(self.cross_attn_cfg)
+        self.embed_dims = self.self_attn.embed_dims
+        self.ffn = FFN(**self.ffn_cfg)
+        norms_list = [
+            build_norm_layer(self.norm_cfg, self.embed_dims)[1]
+            for _ in range(3)
+        ]
+        self.norms = ModuleList(norms_list)
+
+    def forward(self,
+                query: Tensor,
+                key: Tensor = None,
+                value: Tensor = None,
+                query_pos: Tensor = None,
+                key_pos: Tensor = None,
+                self_attn_mask: Tensor = None,
+                cross_attn_mask: Tensor = None,
+                key_padding_mask: Tensor = None,
+                **kwargs) -> Tensor:
+        """
+        Args:
+            query (Tensor): The input query, has shape (bs, num_queries, dim).
+            key (Tensor, optional): The input key, has shape (bs, num_keys,
+                dim). If `None`, the `query` will be used. Defaults to `None`.
+            value (Tensor, optional): The input value, has the same shape as
+                `key`, as in `nn.MultiheadAttention.forward`. If `None`, the
+                `key` will be used. Defaults to `None`.
+            query_pos (Tensor, optional): The positional encoding for `query`,
+                has the same shape as `query`. If not `None`, it will be added
+                to `query` before forward function. Defaults to `None`.
+            key_pos (Tensor, optional): The positional encoding for `key`, has
+                the same shape as `key`. If not `None`, it will be added to
+                `key` before forward function. If None, and `query_pos` has the
+                same shape as `key`, then `query_pos` will be used for
+                `key_pos`. Defaults to None.
+            self_attn_mask (Tensor, optional): ByteTensor mask, has shape
+                (num_queries, num_keys), as in `nn.MultiheadAttention.forward`.
+                Defaults to None.
+            cross_attn_mask (Tensor, optional): ByteTensor mask, has shape
+                (num_queries, num_keys), as in `nn.MultiheadAttention.forward`.
+                Defaults to None.
+            key_padding_mask (Tensor, optional): The `key_padding_mask` of
+                `self_attn` input. ByteTensor, has shape (bs, num_value).
+                Defaults to None.
+
+        Returns:
+            Tensor: forwarded results, has shape (bs, num_queries, dim).
+        """
+
+        query = self.self_attn(
+            query=query,
+            key=query,
+            value=query,
+            query_pos=query_pos,
+            key_pos=query_pos,
+            attn_mask=self_attn_mask,
+            **kwargs)
+        query = self.norms[0](query)
+        query = self.cross_attn(
+            query=query,
+            key=key,
+            value=value,
+            query_pos=query_pos,
+            key_pos=key_pos,
+            attn_mask=cross_attn_mask,
+            key_padding_mask=key_padding_mask,
+            **kwargs)
+        query = self.norms[1](query)
+        query = self.ffn(query)
+        query = self.norms[2](query)
+
+        return query
+    
 @MODELS.register_module()
 class CustomMSDeformableAttention(BaseModule):
     """An attention module used in Deformable-Detr.
@@ -171,7 +308,6 @@ class CustomMSDeformableAttention(BaseModule):
         self.norm_cfg = norm_cfg
         self.dropout = nn.Dropout(dropout)
         self.batch_first = batch_first
-        self.fp16_enabled = False
 
         # you'd better set dim_per_head to a power of 2
         # which is more efficient in the CUDA implementation

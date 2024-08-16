@@ -3,28 +3,23 @@ from re import I
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import Linear, bias_init_with_prob
-from mmcv.utils import TORCH_VERSION, digit_version
+from mmcv.cnn import Linear
+from mmengine.model import bias_init_with_prob
+from mmengine.utils.dl_utils import TORCH_VERSION
+from mmengine.utils import digit_version
 
-from mmdet.core import (multi_apply, multi_apply, reduce_mean)
-from mmdet.models.utils.transformer import inverse_sigmoid
-from mmdet.models import HEADS
-from mmdet.models.dense_heads import DETRHead
-from mmdet3d.core.bbox.coders import build_bbox_coder
+from mmdet.registry import MODELS
+
 from traitlets import import_item
 from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
 from mmcv.cnn.bricks.transformer import build_positional_encoding
-from mmcv.runner import BaseModule, force_fp32
+from mmengine.model import BaseModule
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
 import numpy as np
-import mmcv
-import cv2 as cv
 from projects.mmdet3d_plugin.bevformer.modules import PerceptionTransformerBEVEncoder
-from mmdet.models.utils import build_transformer
-from mmdet3d.models.builder import build_head
 from mmdet3d.models.dense_heads.free_anchor3d_head import FreeAnchor3DHead
 
-@HEADS.register_module()
+@MODELS.register_module()
 class BEVHead(BaseModule):
     def __init__(self, 
                  bev_h,
@@ -43,11 +38,11 @@ class BEVHead(BaseModule):
         self.embed_dims = embed_dims
         self.pc_range = pc_range
         self.fp16_enabled = False
-        self.transformer :PerceptionTransformerBEVEncoder = build_transformer(transformer)
+        self.transformer :PerceptionTransformerBEVEncoder = MODELS.build(transformer)
         self.positional_encoding = build_positional_encoding(positional_encoding)
 
         pts_bbox_head_3d.update(kwargs)
-        self.pts_bbox_head_3d = build_head(pts_bbox_head_3d)
+        self.pts_bbox_head_3d = MODELS.build(pts_bbox_head_3d)
         self.real_w = self.pc_range[3] - self.pc_range[0]
         self.real_h = self.pc_range[4] - self.pc_range[1]
         
@@ -61,7 +56,6 @@ class BEVHead(BaseModule):
         
         self.bev_embedding = nn.Embedding(self.bev_h * self.bev_w, self.embed_dims)
 
-    @force_fp32(apply_to=('mlvl_feats', 'pred_bev'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None,  only_bev=False):
         bs, num_cam, _, _, _ = mlvl_feats[0].shape
         dtype = mlvl_feats[0].dtype
@@ -93,8 +87,6 @@ class BEVHead(BaseModule):
             ret['bev_embed'] = bev_embed
         return ret 
     
-
-    @force_fp32(apply_to=('ret'))
     def loss(self,
              gt_bboxes_list,
              gt_labels_list,
@@ -104,13 +96,11 @@ class BEVHead(BaseModule):
         assert gt_bboxes_ignore is None
         return self.pts_bbox_head_3d.loss(gt_bboxes_list, gt_labels_list, ret['pred'], gt_bboxes_ignore=gt_bboxes_ignore, img_metas=img_metas)
     
-    @force_fp32(apply_to=('ret'))
     def get_bboxes(self, ret, img_metas, rescale=False):
         return self.pts_bbox_head_3d.get_bboxes(ret['pred'], img_metas)
 
-@HEADS.register_module()
+@MODELS.register_module()
 class FreeAnchor3DHeadV2(FreeAnchor3DHead):
-    @force_fp32(apply_to=('pred'))
     def loss(self,
              gt_bboxes_list,
              gt_labels_list,
@@ -120,7 +110,6 @@ class FreeAnchor3DHeadV2(FreeAnchor3DHead):
             cls_scores, bbox_preds, dir_cls_preds = pred
             
             return super().loss(cls_scores, bbox_preds, dir_cls_preds, gt_bboxes_list, gt_labels_list, img_metas, gt_bboxes_ignore)
-    @force_fp32(apply_to=('pred'))
     def get_bboxes(self, pred, img_metas, rescale=False):
         cls_scores, bbox_preds, dir_cls_preds = pred
         return super().get_bboxes(

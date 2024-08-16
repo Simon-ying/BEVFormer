@@ -1,9 +1,9 @@
 import torch
 import mmcv
-from mmdet.core.bbox.match_costs.builder import MATCH_COST
+from mmdet3d.registry import TASK_UTILS
 
 
-@MATCH_COST.register_module()
+@TASK_UTILS.register_module()
 class BBox3DL1Cost(object):
     """BBox3DL1Cost.
      Args:
@@ -27,7 +27,7 @@ class BBox3DL1Cost(object):
         bbox_cost = torch.cdist(bbox_pred, gt_bboxes, p=1)
         return bbox_cost * self.weight
 
-@mmcv.jit(derivate=True, coderize=True)
+@mmcv.utils.jit(derivate=True, coderize=True)
 #@weighted_loss
 def smooth_l1_loss(pred, target, beta=1.0):
     """Smooth L1 loss.
@@ -50,7 +50,7 @@ def smooth_l1_loss(pred, target, beta=1.0):
     return loss.sum(-1)
 
 
-@MATCH_COST.register_module()
+@TASK_UTILS.register_module()
 class SmoothL1Cost(object):
     """SmoothL1Cost.
      Args:

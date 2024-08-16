@@ -7,14 +7,13 @@
 import copy
 from collections import OrderedDict
 import torch
-from mmdet.models import DETECTORS
-from mmdet3d.core import bbox3d2result
+from mmdet.registry import MODELS
+from mmdet3d.structures.ops import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
-from mmdet3d.models.builder import build_head
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class BEVFormerV2(MVXTwoStageDetector):
     """BEVFormer.
     Args:
@@ -61,7 +60,7 @@ class BEVFormerV2(MVXTwoStageDetector):
         assert not self.video_test_mode  # not support video_test_mode yet
 
         # fcos3d head
-        self.fcos3d_bbox_head = build_head(fcos3d_bbox_head) if fcos3d_bbox_head else None
+        self.fcos3d_bbox_head = MODELS.build(fcos3d_bbox_head) if fcos3d_bbox_head else None
         # loss weight
         self.mono_loss_weight = mono_loss_weight
 

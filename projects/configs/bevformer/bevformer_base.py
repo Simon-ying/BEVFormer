@@ -109,23 +109,22 @@ model = dict(
                 num_layers=6,
                 return_intermediate=True,
                 transformerlayers=dict(
-                    type='DetrTransformerDecoderLayer',
-                    attn_cfgs=[
-                        dict(
-                            type='MultiheadAttention',
-                            embed_dims=_dim_,
-                            num_heads=8,
-                            dropout=0.1),
-                         dict(
-                            type='CustomMSDeformableAttention',
-                            embed_dims=_dim_,
-                            num_levels=1),
-                    ],
-
-                    feedforward_channels=_ffn_dim_,
-                    ffn_dropout=0.1,
-                    operation_order=('self_attn', 'norm', 'cross_attn', 'norm',
-                                     'ffn', 'norm')))),
+                    type='mmdet.DetrTransformerDecoderLayer',
+                    self_attn_cfg=dict(
+                        type='MultiheadAttention',
+                        embed_dims=_dim_,
+                        num_heads=8,
+                        dropout=0.1
+                    ),
+                    cross_attn_cfg=dict(
+                        type='CustomMSDeformableAttention',
+                        embed_dims=_dim_,
+                        num_levels=1
+                    ),
+                    ffn_cfg=dict(
+                        feedforward_channels=_ffn_dim_,
+                        ffn_drop=0.1,
+                    )))),
         bbox_coder=dict(
             type='NMSFreeCoder',
             post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],

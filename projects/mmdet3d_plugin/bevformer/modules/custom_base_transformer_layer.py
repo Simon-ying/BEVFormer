@@ -135,7 +135,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
                 attention = build_attention(attn_cfgs[index])
                 # Some custom attentions used as `self_attn`
                 # or `cross_attn` can have different behavior.
-                attention.operation_name = operation_name
+                attention.operation_name = operation_name # TODO: no operation name in attention
                 self.attentions.append(attention)
                 index += 1
 

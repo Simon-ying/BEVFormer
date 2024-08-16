@@ -270,14 +270,17 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
                  **kwargs):
         super(BEVFormerLayer, self).__init__(
             attn_cfgs=attn_cfgs,
-            feedforward_channels=feedforward_channels,
-            ffn_dropout=ffn_dropout,
+            ffn_cfgs=dict(
+                type='FFN',
+                embed_dims=256,
+                feedforward_channels=feedforward_channels,
+                num_fcs=ffn_num_fcs,
+                ffn_drop=ffn_dropout,
+                act_cfg=act_cfg,
+            ),
             operation_order=operation_order,
-            act_cfg=act_cfg,
             norm_cfg=norm_cfg,
-            ffn_num_fcs=ffn_num_fcs,
             **kwargs)
-        self.fp16_enabled = False
         assert len(operation_order) == 6
         assert set(operation_order) == set(
             ['self_attn', 'norm', 'cross_attn', 'ffn'])
