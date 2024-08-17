@@ -18,7 +18,29 @@ bev_h_ = 200
 bev_w_ = 200
 queue_length = 4 # each sequence contains `queue_length` frames.
 
-custom_imports = dict(imports=['projects.mmdet3d_plugin.bevformer'], allow_failed_imports=True)
+custom_imports = dict(imports=['projects.mmdet3d_plugin.bevformer', 'projects.mmdet3d_plugin.core', 'projects.mmdet3d_plugin.models.layers'], allow_failed_imports=True)
+
+img_backbone=dict(
+    type='mmdet.ResNet',
+    depth=101,
+    num_stages=4,
+    out_indices=(1,2,3,),
+    frozen_stages=1,
+    # "BN2d and DCNv2 in mmcv, fallback_on_stride used in resnet.py in mmdet"
+    norm_cfg=dict(type='BN2d', requires_grad=False),
+    norm_eval=True,
+    style='caffe',
+    dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False), # original DCNv2 will print log when perform load_state_dict
+    stage_with_dcn=(False, False, True, True))
+
+img_neck=dict(
+    type='mmdet.FPN',
+    in_channels=[512, 1024, 2048],
+    out_channels=_dim_,
+    start_level=0,
+    add_extra_convs='on_output',
+    num_outs=4,
+    relu_before_extra_convs=True)
 
 transformer=dict(
     type='PerceptionTransformer',
@@ -75,3 +97,54 @@ transformer=dict(
                 feedforward_channels=_ffn_dim_,
                 ffn_drop=0.1,
             ))))
+
+model = dict(
+    type='BEVFormer',
+    use_grid_mask=True,
+    video_test_mode=True,
+    img_backbone=img_backbone,
+    img_neck=img_neck,
+    pts_bbox_head=dict(
+        type='mmdet.BEVFormerHead',
+        bev_h=bev_h_,
+        bev_w=bev_w_,
+        num_query=900,
+        num_classes=10,
+        in_channels=_dim_,
+        sync_cls_avg_factor=True,
+        with_box_refine=True,
+        as_two_stage=False,
+        transformer=transformer,
+        bbox_coder=dict(
+            type='NMSFreeCoder',
+            post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+            pc_range=point_cloud_range,
+            max_num=300,
+            voxel_size=voxel_size,
+            num_classes=10),
+        positional_encoding=dict(
+            type='LearnedPositionalEncoding3D',
+            num_feats=_pos_dim_,
+            row_num_embed=bev_h_,
+            col_num_embed=bev_w_,
+            ),
+        loss_cls=dict(
+            type='mmdet.FocalLoss',
+            use_sigmoid=True,
+            gamma=2.0,
+            alpha=0.25,
+            loss_weight=2.0),
+        loss_bbox=dict(type='mmdet.L1Loss', loss_weight=0.25),
+        loss_iou=dict(type='mmdet.GIoULoss', loss_weight=0.0)),
+    # model training and testing settings
+    train_cfg=dict(pts=dict(
+        grid_size=[512, 512, 1],
+        voxel_size=voxel_size,
+        point_cloud_range=point_cloud_range,
+        out_size_factor=4,
+        assigner=dict(
+            type='HungarianAssigner3D',
+            cls_cost=dict(type='FocalLossCost', weight=2.0),
+            reg_cost=dict(type='BBox3DL1Cost', weight=0.25),
+            iou_cost=dict(type='IoUCost', weight=0.0), # Fake cost. This is just to make it compatible with DETR head.
+            pc_range=point_cloud_range))))

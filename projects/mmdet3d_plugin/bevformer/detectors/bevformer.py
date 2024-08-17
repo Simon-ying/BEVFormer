@@ -11,8 +11,6 @@ from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
 import time
 import copy
-import numpy as np
-import mmdet3d
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
 
 
@@ -134,7 +132,7 @@ class BEVFormer(MVXTwoStageDetector):
 
     def forward_dummy(self, img):
         dummy_metas = None
-        return self.forward_test(img=img, img_metas=[[dummy_metas]])
+        return self.predict(img=img, img_metas=[[dummy_metas]])
 
     def obtain_history_bev(self, imgs_queue, img_metas_list):
         """Obtain history BEV features iteratively. To save GPU memory, gradients are not calculated.
