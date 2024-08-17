@@ -6,7 +6,7 @@ from mmdet.models.task_modules.assigners import BaseAssigner
 from mmengine.structures import InstanceData
 from torch import Tensor
 
-from mmdet3d.registry import TASK_UTILS
+from mmdet.registry import TASK_UTILS
 from ..util import normalize_bbox
 
 try:

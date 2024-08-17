@@ -93,13 +93,12 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
                 reference_points=reference_points_input,
                 key_padding_mask=key_padding_mask,
                 **kwargs)
-            output = output.permute(1, 0, 2)
+            # output = output.permute(1, 0, 2)
 
             if reg_branches is not None:
                 tmp = reg_branches[lid](output)
 
                 assert reference_points.shape[-1] == 3
-
                 new_reference_points = torch.zeros_like(reference_points)
                 new_reference_points[..., :2] = tmp[
                     ..., :2] + inverse_sigmoid(reference_points[..., :2])
@@ -110,7 +109,7 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
 
                 reference_points = new_reference_points.detach()
 
-            output = output.permute(1, 0, 2)
+            # output = output.permute(1, 0, 2)
             if self.return_intermediate:
                 intermediate.append(output)
                 intermediate_reference_points.append(reference_points)

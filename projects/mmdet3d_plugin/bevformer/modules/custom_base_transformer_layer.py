@@ -152,7 +152,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
             if 'embed_dims' not in ffn_cfgs[ffn_index]:
                 ffn_cfgs['embed_dims'] = self.embed_dims
             else:
-                assert ffn_cfgs[ffn_index]['embed_dims'] == self.embed_dims
+                assert ffn_cfgs[ffn_index]['embed_dims'] == self.embed_dims, f"{ffn_cfgs[ffn_index]['embed_dims']} != {self.embed_dims}"
 
             self.ffns.append(
                 build_feedforward_network(ffn_cfgs[ffn_index]))

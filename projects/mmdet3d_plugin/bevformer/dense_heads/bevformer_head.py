@@ -61,71 +61,73 @@ class BEVFormerHead(DETRHead):
             transformer['as_two_stage'] = self.as_two_stage
         self.code_size = code_size
         self.code_weights = code_weights
-
-        self.bbox_coder = TASK_UTILS.build(bbox_coder)
-        self.pc_range = self.bbox_coder.pc_range
-        self.real_w = self.pc_range[3] - self.pc_range[0]
-        self.real_h = self.pc_range[4] - self.pc_range[1]
-        self.num_cls_fcs = num_cls_fcs - 1
-
-        self.transformer = MODELS.build(transformer)
-        assert 'num_feats' in positional_encoding
-        num_feats = positional_encoding['num_feats']
-        assert num_feats * 2 == self.embed_dims, 'embed_dims should' \
-            f' be exactly 2 times of num_feats. Found {self.embed_dims}' \
-            f' and {num_feats}.'
-
-        self.positional_encoding = TASK_UTILS.build(positional_encoding)
-
+        self.transformer = None # predefine to skip _init_layers
         super(BEVFormerHead, self).__init__(
             *args,
             num_classes=num_classes,
             embed_dims=in_channels,
             sync_cls_avg_factor=sync_cls_avg_factor,
             **kwargs)
+        
+        self.transformer = MODELS.build(transformer)
+        self.bbox_coder = TASK_UTILS.build(bbox_coder)
+        self.pc_range = self.bbox_coder.pc_range
+        self.real_w = self.pc_range[3] - self.pc_range[0]
+        self.real_h = self.pc_range[4] - self.pc_range[1]
+        self.num_cls_fcs = num_cls_fcs - 1
+        self.embed_dims = in_channels
+        assert 'num_feats' in positional_encoding
+        num_feats = positional_encoding['num_feats']
+        assert num_feats * 2 == self.embed_dims, 'embed_dims should' \
+            f' be exactly 2 times of num_feats. Found {self.embed_dims}' \
+            f' and {num_feats}.'
 
+        
+        self.positional_encoding = TASK_UTILS.build(positional_encoding)
         self.code_weights = nn.Parameter(torch.tensor(
             self.code_weights, requires_grad=False), requires_grad=False)
+        self._init_layers()
 
     def _init_layers(self):
         """Initialize classification branch and regression branch of head."""
-        cls_branch = []
-        for _ in range(self.num_reg_fcs):
-            cls_branch.append(Linear(self.embed_dims, self.embed_dims))
-            cls_branch.append(nn.LayerNorm(self.embed_dims))
-            cls_branch.append(nn.ReLU(inplace=True))
-        cls_branch.append(Linear(self.embed_dims, self.cls_out_channels))
-        fc_cls = nn.Sequential(*cls_branch)
+        if self.transformer:
+            cls_branch = []
+            for _ in range(self.num_reg_fcs):
+                cls_branch.append(Linear(self.embed_dims, self.embed_dims))
+                cls_branch.append(nn.LayerNorm(self.embed_dims))
+                cls_branch.append(nn.ReLU(inplace=True))
+            cls_branch.append(Linear(self.embed_dims, self.cls_out_channels))
+            fc_cls = nn.Sequential(*cls_branch)
 
-        reg_branch = []
-        for _ in range(self.num_reg_fcs):
-            reg_branch.append(Linear(self.embed_dims, self.embed_dims))
-            reg_branch.append(nn.ReLU())
-        reg_branch.append(Linear(self.embed_dims, self.code_size))
-        reg_branch = nn.Sequential(*reg_branch)
+            reg_branch = []
+            for _ in range(self.num_reg_fcs):
+                reg_branch.append(Linear(self.embed_dims, self.embed_dims))
+                reg_branch.append(nn.ReLU())
+            reg_branch.append(Linear(self.embed_dims, self.code_size))
+            reg_branch = nn.Sequential(*reg_branch)
 
-        def _get_clones(module, N):
-            return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+            def _get_clones(module, N):
+                return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
-        # last reg_branch is used to generate proposal from
-        # encode feature map when as_two_stage is True.
-        num_pred = (self.transformer.decoder.num_layers + 1) if \
-            self.as_two_stage else self.transformer.decoder.num_layers
+            # last reg_branch is used to generate proposal from
+            # encode feature map when as_two_stage is True.
+            num_pred = (self.transformer.decoder.num_layers + 1) if \
+                self.as_two_stage else self.transformer.decoder.num_layers
 
-        if self.with_box_refine:
-            self.cls_branches = _get_clones(fc_cls, num_pred)
-            self.reg_branches = _get_clones(reg_branch, num_pred)
-        else:
-            self.cls_branches = nn.ModuleList(
-                [fc_cls for _ in range(num_pred)])
-            self.reg_branches = nn.ModuleList(
-                [reg_branch for _ in range(num_pred)])
+            if self.with_box_refine:
+                self.cls_branches = _get_clones(fc_cls, num_pred)
+                self.reg_branches = _get_clones(reg_branch, num_pred)
+            else:
+                self.cls_branches = nn.ModuleList(
+                    [fc_cls for _ in range(num_pred)])
+                self.reg_branches = nn.ModuleList(
+                    [reg_branch for _ in range(num_pred)])
 
-        if not self.as_two_stage:
-            self.bev_embedding = nn.Embedding(
-                self.bev_h * self.bev_w, self.embed_dims)
-            self.query_embedding = nn.Embedding(self.num_query,
-                                                self.embed_dims * 2)
+            if not self.as_two_stage:
+                self.bev_embedding = nn.Embedding(
+                    self.bev_h * self.bev_w, self.embed_dims)
+                self.query_embedding = nn.Embedding(self.num_query,
+                                                    self.embed_dims * 2)
 
     def init_weights(self):
         """Initialize weights of the DeformDETR head."""
@@ -189,7 +191,7 @@ class BEVFormerHead(DETRHead):
         )
 
         bev_embed, hs, init_reference, inter_references = outputs
-        hs = hs.permute(0, 2, 1, 3)
+        # hs = hs.permute(0, 2, 1, 3)
         outputs_classes = []
         outputs_coords = []
         for lvl in range(hs.shape[0]):
@@ -200,7 +202,6 @@ class BEVFormerHead(DETRHead):
             reference = inverse_sigmoid(reference)
             outputs_class = self.cls_branches[lvl](hs[lvl])
             tmp = self.reg_branches[lvl](hs[lvl])
-
             # TODO: check the shape of reference
             assert reference.shape[-1] == 3
             tmp[..., 0:2] += reference[..., 0:2]

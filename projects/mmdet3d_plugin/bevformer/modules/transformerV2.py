@@ -151,7 +151,8 @@ class PerceptionTransformerBEVEncoder(BaseModule):
                 # prev_bev = torchvision.transforms.functional.rotate(prev_bev, -30, InterpolationMode.BILINEAR)
                 ref_y, ref_x = torch.meshgrid(
                     torch.linspace(0.5, bev_h - 0.5, bev_h, dtype=bev_queries.dtype, device=bev_queries.device),
-                    torch.linspace(0.5, bev_w - 0.5, bev_w, dtype=bev_queries.dtype, device=bev_queries.device))
+                    torch.linspace(0.5, bev_w - 0.5, bev_w, dtype=bev_queries.dtype, device=bev_queries.device),
+                    indexing='ij')
                 ref_y = (ref_y / bev_h)
                 ref_x = (ref_x / bev_w)
                 grid = torch.stack((ref_x, ref_y), -1)

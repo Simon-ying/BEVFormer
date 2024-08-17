@@ -133,7 +133,7 @@ class PerceptionTransformer(BaseModule):
         shift_y = shift_y * self.use_shift
         shift_x = shift_x * self.use_shift
         shift = bev_queries.new_tensor(
-            [shift_x, shift_y]).permute(1, 0)  # xy, bs -> bs, xy
+            np.array([shift_x, shift_y])).permute(1, 0)  # xy, bs -> bs, xy
 
         if prev_bev is not None:
             if prev_bev.shape[1] == bev_h * bev_w:
@@ -263,9 +263,9 @@ class PerceptionTransformer(BaseModule):
         init_reference_out = reference_points
 
         # [bs, num_queries, dim] --> [num_queries, bs, dim]
-        query = query.permute(1, 0, 2)
-        query_pos = query_pos.permute(1, 0, 2)
-        bev_embed = bev_embed.permute(1, 0, 2)
+        # query = query.permute(1, 0, 2)
+        # query_pos = query_pos.permute(1, 0, 2)
+        # bev_embed = bev_embed.permute(1, 0, 2)
 
         inter_states, inter_references = self.decoder(
             query=query,

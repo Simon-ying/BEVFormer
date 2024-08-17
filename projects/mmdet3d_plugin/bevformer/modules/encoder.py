@@ -75,7 +75,8 @@ class BEVFormerEncoder(TransformerLayerSequence):
                 torch.linspace(
                     0.5, H - 0.5, H, dtype=dtype, device=device),
                 torch.linspace(
-                    0.5, W - 0.5, W, dtype=dtype, device=device)
+                    0.5, W - 0.5, W, dtype=dtype, device=device),
+                indexing='ij'
             )
             ref_y = ref_y.reshape(-1)[None] / H
             ref_x = ref_x.reshape(-1)[None] / W
@@ -267,12 +268,13 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
                  act_cfg=dict(type='ReLU', inplace=True),
                  norm_cfg=dict(type='LN'),
                  ffn_num_fcs=2,
+                 embed_dims=256,
                  **kwargs):
         super(BEVFormerLayer, self).__init__(
             attn_cfgs=attn_cfgs,
             ffn_cfgs=dict(
                 type='FFN',
-                embed_dims=256,
+                embed_dims=embed_dims,
                 feedforward_channels=feedforward_channels,
                 num_fcs=ffn_num_fcs,
                 ffn_drop=ffn_dropout,
