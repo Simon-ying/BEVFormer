@@ -34,25 +34,27 @@ batch_inputs_dict = dict(
 fake_meta_info = {
     "0": dict(
         prev_bev_exists=False,
-        can_bus=[0] * 18,
-        lidar2img=np.reshape(np.identity(4), (1,4,4)),
+        can_bus=[0 for _ in range(18)],
+        lidar2img=np.reshape(np.identity(4), (1,4,4)).tolist(),
         img_shape=[[H, W]]
     ),
     "1": dict(
         prev_bev_exists=True,
-        can_bus=[0] * 18,
-        lidar2img=np.reshape(np.identity(4), (1,4,4)),
+        can_bus=[0 for _ in range(18)],
+        lidar2img=np.reshape(np.identity(4), (1,4,4)).tolist(),
         img_shape=[[H, W]]
     ),
 }
 fake_data_sample = Det3DDataSample(metainfo=fake_meta_info)
-batch_data_samples = [fake_data_sample]
-output = bevformer(batch_inputs_dict, batch_data_samples, mode="tensor")
-for key, value in output.items():
-    try:
-        print(f"{key} has shape: {value.shape}")
-    except:
-        pass
+batch_data_samples = [fake_meta_info]
+# output = bevformer(batch_inputs_dict, batch_data_samples, mode="tensor")
+# print(batch_inputs_dict, batch_data_samples)
+torch.onnx.export(bevformer, (batch_inputs_dict, batch_data_samples), "bevformer.onnx", opset_version=19)
+# for key, value in output.items():
+#     try:
+#         print(f"{key} has shape: {value.shape}")
+#     except:
+#         pass
 # B, N, C, H, W = fake_imgs.size()
 # fake_imgs = fake_imgs.view(B * N, C, H, W)
 

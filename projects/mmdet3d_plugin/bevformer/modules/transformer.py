@@ -15,7 +15,7 @@ from torchvision.transforms.functional import rotate
 from .temporal_self_attention import TemporalSelfAttention
 from .spatial_cross_attention import MSDeformableAttention3D
 from .decoder import CustomMSDeformableAttention
-
+from torch import Tensor
 
 @MODELS.register_module()
 class PerceptionTransformer(BaseModule):

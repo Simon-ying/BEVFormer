@@ -167,8 +167,8 @@ class BEVFormer(MVXTwoStageDetector):
 
     def _forward(self, batch_inputs_dict, batch_data_samples):
         imgs = batch_inputs_dict.get("imgs", None)
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-
+        # batch_input_metas = [item.metainfo for item in batch_data_samples]
+        batch_input_metas = [item for item in batch_data_samples]
         len_queue = imgs.size(1)
         prev_img = imgs[:, :-1, ...]
         imgs = imgs[:, -1, ...]

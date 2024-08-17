@@ -48,6 +48,7 @@ transformer=dict(
     use_shift=True,
     use_can_bus=True,
     embed_dims=_dim_,
+    rotate_center=[bev_h_//2, bev_w_//2],
     encoder=dict(
         type='BEVFormerEncoder',
         num_layers=6,
