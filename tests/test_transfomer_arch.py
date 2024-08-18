@@ -49,7 +49,7 @@ fake_data_sample = Det3DDataSample(metainfo=fake_meta_info)
 batch_data_samples = [fake_meta_info]
 # output = bevformer(batch_inputs_dict, batch_data_samples, mode="tensor")
 # print(batch_inputs_dict, batch_data_samples)
-torch.onnx.export(bevformer, (batch_inputs_dict, batch_data_samples), "bevformer.onnx", opset_version=19)
+onnx_program = torch.onnx.export(bevformer, (batch_inputs_dict, batch_data_samples), "bevformer.onnx")
 # for key, value in output.items():
 #     try:
 #         print(f"{key} has shape: {value.shape}")
