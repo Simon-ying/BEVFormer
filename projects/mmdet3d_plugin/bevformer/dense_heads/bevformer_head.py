@@ -137,7 +137,7 @@ class BEVFormerHead(DETRHead):
             for m in self.cls_branches:
                 nn.init.constant_(m[-1].bias, bias_init)
 
-    def forward(self, mlvl_feats, img_metas, prev_bev=None,  only_bev=False):
+    def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False):
         """Forward function.
         Args:
             mlvl_feats (tuple[Tensor]): Features from the upstream
@@ -188,7 +188,8 @@ class BEVFormerHead(DETRHead):
                 cls_branches=self.cls_branches if self.as_two_stage else None,
                 img_metas=img_metas,
                 prev_bev=prev_bev
-        )
+            )
+
 
         bev_embed, hs, init_reference, inter_references = outputs
         # hs = hs.permute(0, 2, 1, 3)

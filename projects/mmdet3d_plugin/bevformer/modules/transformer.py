@@ -130,8 +130,8 @@ class PerceptionTransformer(BaseModule):
             np.cos(bev_angle / 180 * np.pi) / grid_length_y / bev_h
         shift_x = translation_length * \
             np.sin(bev_angle / 180 * np.pi) / grid_length_x / bev_w
-        shift_y = shift_y * self.use_shift
-        shift_x = shift_x * self.use_shift
+        shift_y = shift_y * int(self.use_shift)
+        shift_x = shift_x * int(self.use_shift)
         shift = bev_queries.new_tensor(
             np.array([shift_x, shift_y])).permute(1, 0)  # xy, bs -> bs, xy
 
@@ -154,7 +154,7 @@ class PerceptionTransformer(BaseModule):
         can_bus = bev_queries.new_tensor(
             [each['can_bus'] for each in kwargs['img_metas']])  # [bs, 18]
         can_bus = self.can_bus_mlp(can_bus)[None, :, :]
-        bev_queries = bev_queries + can_bus * self.use_can_bus
+        bev_queries = bev_queries + can_bus * int(self.use_can_bus)
 
         feat_flatten = []
         spatial_shapes = []

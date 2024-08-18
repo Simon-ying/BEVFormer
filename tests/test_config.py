@@ -16,7 +16,7 @@ _ffn_dim_ = _dim_*2
 _num_levels_ = 4
 bev_h_ = 50
 bev_w_ = 50
-queue_length = 4 # each sequence contains `queue_length` frames.
+queue_length = 2 # each sequence contains `queue_length` frames.
 
 custom_imports = dict(imports=['projects.mmdet3d_plugin.bevformer', 'projects.mmdet3d_plugin.core', 'projects.mmdet3d_plugin.models.layers'], allow_failed_imports=True)
 
@@ -102,6 +102,39 @@ transformer=dict(
                 ffn_drop=0.1,
                 act_cfg=dict(type='ReLU', inplace=True),
             ))))
+
+pts_bbox_head=dict(
+    type='mmdet.BEVFormerHead',
+    bev_h=bev_h_,
+    bev_w=bev_w_,
+    num_query=900,
+    num_classes=10,
+    in_channels=_dim_,
+    sync_cls_avg_factor=True,
+    with_box_refine=True,
+    as_two_stage=False,
+    transformer=transformer,
+    bbox_coder=dict(
+        type='NMSFreeCoder',
+        post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+        pc_range=point_cloud_range,
+        max_num=300,
+        voxel_size=voxel_size,
+        num_classes=10),
+    positional_encoding=dict(
+        type='LearnedPositionalEncoding3D',
+        num_feats=_pos_dim_,
+        row_num_embed=bev_h_,
+        col_num_embed=bev_w_,
+        ),
+    loss_cls=dict(
+        type='mmdet.FocalLoss',
+        use_sigmoid=True,
+        gamma=2.0,
+        alpha=0.25,
+        loss_weight=2.0),
+    loss_bbox=dict(type='mmdet.L1Loss', loss_weight=0.25),
+    loss_iou=dict(type='mmdet.GIoULoss', loss_weight=0.0))
 
 model = dict(
     type='BEVFormer',
