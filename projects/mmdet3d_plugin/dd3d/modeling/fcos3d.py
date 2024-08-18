@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from torch import nn
 
 from detectron2.layers import Conv2d, cat, get_norm
-from mmcv.runner import force_fp32
 
 from projects.mmdet3d_plugin.dd3d.layers.normalization import ModuleListDial, Offset, Scale
 from .disentangled_box3d_loss import DisentangledBox3DLoss
@@ -233,7 +232,6 @@ class FCOS3DLoss(nn.Module):
         self.num_classes = num_classes
         self.class_agnostic = class_agnostic
 
-    @force_fp32(apply_to=('box3d_quat', 'box3d_ctr', 'box3d_depth', 'box3d_size','box3d_conf', 'inv_intrinsics'))
     def forward(
         self, box3d_quat, box3d_ctr, box3d_depth, box3d_size, box3d_conf, dense_depth, inv_intrinsics, fcos2d_info,
         targets

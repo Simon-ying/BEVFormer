@@ -9,7 +9,6 @@ from torch.nn import functional as F
 from detectron2.layers import Conv2d, batched_nms, cat, get_norm
 from detectron2.structures import Boxes, Instances
 from detectron2.utils.comm import get_world_size
-from mmcv.runner import force_fp32
 
 from projects.mmdet3d_plugin.dd3d.layers.iou_loss import IOULoss
 from projects.mmdet3d_plugin.dd3d.layers.normalization import ModuleListDial, Scale
@@ -178,7 +177,6 @@ class FCOS2DLoss(nn.Module):
 
         self.num_classes = num_classes
 
-    @force_fp32(apply_to=('logits', 'box2d_reg', 'centerness'))
     def forward(self, logits, box2d_reg, centerness, targets):
         labels = targets['labels']
         box2d_reg_targets = targets['box2d_reg_targets']

@@ -9,8 +9,7 @@ from detectron2.layers import Conv2d, cat
 from detectron2.modeling.postprocessing import detector_postprocess as resize_instances
 from detectron2.structures import Instances
 from detectron2.utils import comm as d2_comm
-from mmdet.models.builder import HEADS
-from mmcv.runner import force_fp32
+from mmdet.registry import MODELS
 
 from projects.mmdet3d_plugin.dd3d.datasets.nuscenes import MAX_NUM_ATTRIBUTES
 from .core import DD3D
@@ -207,7 +206,6 @@ class NuscenesLoss(nn.Module):
         self.attr_loss_weight = attr_loss_weight
         self.speed_loss_weight = speed_loss_weight
 
-    @force_fp32(apply_to=('attr_logits', 'speeds'))
     def forward(self, attr_logits, speeds, fcos2d_info, targets):
         # Flatten predictions
         attr_logits = cat([x.permute(0, 2, 3, 1).reshape(-1, MAX_NUM_ATTRIBUTES) for x in attr_logits])
@@ -310,7 +308,7 @@ class NuscenesInference():
                     instances_lvl[i].pred_speeds = speed_per_im
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class NuscenesDD3D(DD3D):
     def __init__(self, 
                  num_classes,
@@ -373,7 +371,6 @@ class NuscenesDD3D(DD3D):
         # NOTE: NuScenes evaluator allows max. 500 detections per sample.
         # self.max_num_dets_per_sample = cfg.DD3D.NUSC.INFERENCE.MAX_NUM_DETS_PER_SAMPLE
 
-    @force_fp32(apply_to=('features'))
     def forward(self, features, batched_inputs):
         # NOTE:
         # images = [x["image"].to(self.device) for x in batched_inputs]

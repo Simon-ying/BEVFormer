@@ -2,15 +2,15 @@
 import mmcv
 import numpy as np
 import pickle
-from mmcv import track_iter_progress
+from mmengine import print_log, track_iter_progress
 from mmcv.ops import roi_align
 from os import path as osp
 from pycocotools import mask as maskUtils
 from pycocotools.coco import COCO
 
-from mmdet3d.core.bbox import box_np_ops as box_np_ops
-from mmdet3d.datasets import build_dataset
-from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
+from mmdet3d.structures.ops import box_np_ops as box_np_ops
+from mmdet3d.registry import DATASETS
+from mmdet.evaluation.functional.bbox_overlaps import bbox_overlaps
 
 
 def _poly2mask(mask_ann, img_h, img_w):
@@ -215,7 +215,7 @@ def create_groundtruth_database(dataset_class_name,
                     file_client_args=file_client_args)
             ])
 
-    dataset = build_dataset(dataset_cfg)
+    dataset = DATASETS.build(dataset_cfg)
 
     if database_save_path is None:
         database_save_path = osp.join(data_path, f'{info_prefix}_gt_database')

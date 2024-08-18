@@ -9,12 +9,13 @@ from mmdet3d.structures import Det3DDataSample
 from mmdet3d.structures.bbox_3d import BaseInstance3DBoxes
 import numpy as np
 import copy
-
+import sys
+sys.path.append(".")
 '''
 build models
 '''
-cfg = Config.fromfile("test_config.py")
-
+cfg = Config.fromfile("tests/test_config.py")
+print(cfg.default_hooks)
 img_backbone = MODELS.build(cfg.img_backbone)
 img_backbone.eval()
 
@@ -129,7 +130,7 @@ input = dict(
     mode="tensor"
 )
 print(prev_bev.shape)
-onnx_program = torch.onnx.export(bevformer, input, "bevformer.onnx")
+# onnx_program = torch.onnx.export(bevformer, input, "bevformer.onnx")
 # for key, value in output.items():
 #     try:
 #         print(f"{key} has shape: {value.shape}")

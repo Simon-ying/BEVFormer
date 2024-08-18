@@ -6,7 +6,6 @@ from torch import nn
 from detectron2.modeling.postprocessing import detector_postprocess as resize_instances
 from detectron2.structures import Instances
 from detectron2.layers import ShapeSpec
-from mmcv.runner import force_fp32
 
 from .fcos2d import FCOS2DHead, FCOS2DInference, FCOS2DLoss
 from .fcos3d import FCOS3DHead, FCOS3DInference, FCOS3DLoss
@@ -84,7 +83,6 @@ class DD3D(nn.Module):
     # def preprocess_image(self, x):
     #     return (x - self.pixel_mean) / self.pixel_std
 
-    @force_fp32(apply_to=('features'))
     def forward(self, features, batched_inputs):
         # NOTE:
         # images = [x["image"].to(self.device) for x in batched_inputs]

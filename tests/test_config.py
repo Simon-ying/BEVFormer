@@ -1,11 +1,11 @@
 _base_ = [
-    'mmdet::_base_/default_runtime.py'
+    'mmdet3d::_base_/default_runtime.py'
 ]
 
 import os
 import sys
-project_path = "/home/yingzhuoye/ws/github_files/BEVFormer"
-sys.path.append(project_path)
+# project_path = "/home/yingzhuoye/ws/github_files/BEVFormer"
+# sys.path.append(project_path)
 
 point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 voxel_size = [0.2, 0.2, 8]
@@ -18,7 +18,7 @@ bev_h_ = 50
 bev_w_ = 50
 queue_length = 2 # each sequence contains `queue_length` frames.
 
-custom_imports = dict(imports=['projects.mmdet3d_plugin.bevformer', 'projects.mmdet3d_plugin.core', 'projects.mmdet3d_plugin.models.layers'], allow_failed_imports=True)
+custom_imports = dict(imports=['projects.mmdet3d_plugin'], allow_failed_imports=False)
 
 img_backbone=dict(
     type='mmdet.ResNet',
