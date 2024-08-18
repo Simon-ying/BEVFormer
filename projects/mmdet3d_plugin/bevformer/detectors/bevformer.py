@@ -5,7 +5,7 @@
 # ---------------------------------------------
 
 import torch
-from mmdet.registry import MODELS
+from mmdet3d.registry import MODELS
 from mmdet3d.structures import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask

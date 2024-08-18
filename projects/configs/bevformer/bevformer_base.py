@@ -2,7 +2,8 @@ _base_ = [
     '../datasets/custom_nus-3d.py',
     '../_base_/default_runtime.py'
 ]
-
+import sys
+sys.path.append(".")
 custom_imports = dict(imports=['projects.mmdet3d_plugin'], allow_failed_imports=False)
 
 # If point cloud range is changed, the models should also change their point
@@ -113,7 +114,7 @@ model = dict(
                 num_layers=6,
                 return_intermediate=True,
                 transformerlayers=dict(
-                    type='mmdet.DetrTransformerDecoderLayer',
+                    type='DetrTransformerDecoderLayer',
                     self_attn_cfg=dict(
                         type='MultiheadAttention',
                         embed_dims=_dim_,
@@ -161,9 +162,9 @@ model = dict(
         out_size_factor=4,
         assigner=dict(
             type='HungarianAssigner3D',
-            cls_cost=dict(type='FocalLossCost', weight=2.0),
+            cls_cost=dict(type='mmdet.FocalLossCost', weight=2.0),
             reg_cost=dict(type='BBox3DL1Cost', weight=0.25),
-            iou_cost=dict(type='IoUCost', weight=0.0), # Fake cost. This is just to make it compatible with DETR head.
+            iou_cost=dict(type='mmdet.IoUCost', weight=0.0), # Fake cost. This is just to make it compatible with DETR head.
             pc_range=point_cloud_range))))
 
 dataset_type = 'CustomNuScenesDataset'

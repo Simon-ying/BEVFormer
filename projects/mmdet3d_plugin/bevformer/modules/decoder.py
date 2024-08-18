@@ -9,7 +9,7 @@ import warnings
 import torch
 import torch.nn as nn
 from mmengine.model import BaseModule, ModuleList, constant_init, xavier_init
-from mmdet.registry import MODELS
+from mmdet3d.registry import MODELS
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
 import math
 from mmengine.utils import deprecated_api_warning

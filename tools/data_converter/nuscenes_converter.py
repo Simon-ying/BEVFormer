@@ -105,10 +105,13 @@ def create_nuscenes_infos(root_path,
         info_path = osp.join(out_path,
                              '{}_infos_temporal_train.pkl'.format(info_prefix))
         mmengine.dump(data, info_path)
+        mmengine.dump(data, f'{info_path}.json')
         data['infos'] = val_nusc_infos
         info_val_path = osp.join(out_path,
                                  '{}_infos_temporal_val.pkl'.format(info_prefix))
         mmengine.dump(data, info_val_path)
+        # just for vis
+        mmengine.dump(data, f'{info_val_path}.json')
 
 
 def get_available_scenes(nusc):
@@ -270,7 +273,7 @@ def _fill_trainval_infos(nusc,
                 break
         info['sweeps'] = sweeps
         # obtain annotation
-        if not test:
+        if not test :
             annotations = [
                 nusc.get('sample_annotation', token)
                 for token in sample['anns']

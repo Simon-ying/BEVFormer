@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import copy
 import warnings
-from mmengine.registry import MODELS
+from mmdet3d.registry import MODELS
 
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
 from mmengine.utils import digit_version

@@ -9,7 +9,7 @@ from mmengine.utils import digit_version
 from mmdet.models.utils import multi_apply
 from mmdet.utils import reduce_mean
 from mmdet.models.layers.transformer import inverse_sigmoid
-from mmdet.registry import MODELS
+from mmdet3d.registry import MODELS
 from mmdet.models.dense_heads import DETRHead
 
 from mmdet3d.registry import TASK_UTILS

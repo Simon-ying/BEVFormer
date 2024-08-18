@@ -13,7 +13,7 @@ import torch.nn as nn
 from mmengine import ConfigDict
 from mmcv.cnn import Linear, build_activation_layer, build_norm_layer
 from mmengine.model import BaseModule, ModuleList
-from mmengine.registry import MODELS
+from mmdet3d.registry import MODELS
 
 
 # Avoid BC-breaking of importing MultiScaleDeformableAttention from this file

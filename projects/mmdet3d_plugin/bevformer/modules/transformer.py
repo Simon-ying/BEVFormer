@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from mmengine.model import BaseModule, constant_init, xavier_init
 
-from mmdet.registry import MODELS
+from mmdet3d.registry import MODELS
 from torch.nn.init import normal_
 from torchvision.transforms.functional import rotate
 from .temporal_self_attention import TemporalSelfAttention
