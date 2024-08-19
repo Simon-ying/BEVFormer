@@ -91,22 +91,22 @@ def create_nuscenes_infos(root_path,
     train_nusc_infos, val_nusc_infos = _fill_trainval_infos(
         nusc, nusc_can_bus, train_scenes, val_scenes, test, max_sweeps=max_sweeps)
 
-    metadata = dict(version=version)
+    metainfo = dict(version=version)
     if test:
         print('test sample: {}'.format(len(train_nusc_infos)))
-        data = dict(infos=train_nusc_infos, metadata=metadata)
+        data = dict(data_list=train_nusc_infos, metainfo=metainfo)
         info_path = osp.join(out_path,
                              '{}_infos_temporal_test.pkl'.format(info_prefix))
         mmengine.dump(data, info_path)
     else:
         print('train sample: {}, val sample: {}'.format(
             len(train_nusc_infos), len(val_nusc_infos)))
-        data = dict(infos=train_nusc_infos, metadata=metadata)
+        data = dict(data_list=train_nusc_infos, metainfo=metainfo)
         info_path = osp.join(out_path,
                              '{}_infos_temporal_train.pkl'.format(info_prefix))
         mmengine.dump(data, info_path)
         mmengine.dump(data, f'{info_path}.json')
-        data['infos'] = val_nusc_infos
+        data['data_list'] = val_nusc_infos
         info_val_path = osp.join(out_path,
                                  '{}_infos_temporal_val.pkl'.format(info_prefix))
         mmengine.dump(data, info_val_path)
@@ -403,7 +403,7 @@ def export_2d_annotation(root_path, info_path, version, mono3d=True):
         'CAM_BACK_LEFT',
         'CAM_BACK_RIGHT',
     ]
-    nusc_infos = mmengine.load(info_path)['infos']
+    nusc_infos = mmengine.load(info_path)['data_list']
     nusc = NuScenes(version=version, dataroot=root_path, verbose=True)
     # info_2d_list = []
     cat2Ids = [

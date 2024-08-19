@@ -48,10 +48,9 @@ class CustomNuScenesDataset(NuScenesDataset):
             input_dict = self.get_data_info(i)
             if input_dict is None:
                 return None
-            self.pre_pipeline(input_dict)
             example = self.pipeline(input_dict)
             if not self.test_mode and self.filter_empty_gt and \
-                    (example is None or ~(example['gt_labels_3d']._data != -1).any()):
+                (example is None or ~(example['gt_labels_3d']._data != -1).any()):
                 return None
             queue.append(example)
         return self.union2one(queue)
@@ -104,7 +103,7 @@ class CustomNuScenesDataset(NuScenesDataset):
                     from lidar to different cameras.
                 - ann_info (dict): Annotation info.
         """
-        info = self.data_infos[index]
+        info = super().get_data_info(index)
         # standard protocal modified from SECOND.Pytorch
         input_dict = dict(
             sample_idx=info['token'],
@@ -152,8 +151,9 @@ class CustomNuScenesDataset(NuScenesDataset):
                 ))
 
         if not self.test_mode:
-            annos = self.get_ann_info(index)
-            input_dict['ann_info'] = annos
+            input_dict['ann_info'] = self.get_ann_info(index)
+        if self.test_mode and self.load_eval_anns:
+            input_dict['eval_ann_info'] = self.get_ann_info(index)
 
         rotation = Quaternion(input_dict['ego2global_rotation'])
         translation = input_dict['ego2global_translation']
@@ -168,6 +168,81 @@ class CustomNuScenesDataset(NuScenesDataset):
 
         return input_dict
 
+    def parse_ann_info(self, info: dict):
+        """Process the `instances` in data info to `ann_info`.
+
+        In `Custom3DDataset`, we simply concatenate all the field
+        in `instances` to `np.ndarray`, you can do the specific
+        process in subclass. You have to convert `gt_bboxes_3d`
+        to different coordinates according to the task.
+
+        Args:
+            info (dict): Info dict.
+
+        Returns:
+            dict or None: Processed `ann_info`.
+        """
+        # add s or gt prefix for most keys after concat
+        # we only process 3d annotations here, the corresponding
+        # 2d annotation process is in the `LoadAnnotations3D`
+        # in `transforms`
+        ann_list = ["gt_boxes", "gt_names", "gt_velocity", "num_lidar_pts", "num_radar_pts", "valid_flag"]
+        name_mapping = {
+            'gt_boxes': 'gt_bboxes_3d',
+            'gt_names': 'gt_labels_3d',
+            'gt_velocity': 'velocities',
+        }
+        # empty gt
+        if len(info["gt_boxes"]) == 0:
+            return None
+        else:
+            ann_info = dict()
+            for ann_name in ann_list:
+                temp_anns = info[ann_name]
+                if ann_name in name_mapping:
+                    mapped_ann_name = name_mapping[ann_name]
+                else:
+                    mapped_ann_name = ann_name
+                if ann_name == "gt_names":
+                    for ind, name in enumerate(temp_anns):
+                        if name in self.METAINFO['classes']:
+                            temp_anns[ind] = self.METAINFO['classes'].index(name)
+                        else:
+                            temp_anns[ind] = -1
+                    temp_anns = np.array(temp_anns).astype(np.int64)
+                elif ann_name in name_mapping:
+                    temp_anns = np.array(temp_anns).astype(np.float32) 
+                else:
+                    temp_anns = np.array(temp_anns)
+
+                ann_info[mapped_ann_name] = temp_anns
+
+            for label in ann_info['gt_labels_3d']:
+                if label != -1:
+                    self.num_ins_per_cat[label] += 1
+
+        return ann_info
+    
+    def parse_data_info(self, info: dict):
+        """Process the raw data info.
+
+        The only difference with it in `Det3DDataset`
+        is the specific process for `plane`.
+
+        Args:
+            info (dict): Raw info dict.
+
+        Returns:
+            List[dict] or dict: Has `ann_info` in training stage. And
+            all path has been converted to absolute path.
+        """
+        if not self.test_mode:
+            # used in training
+            info['ann_info'] = self.parse_ann_info(info)
+        if self.test_mode and self.load_eval_anns:
+            info['eval_ann_info'] = self.parse_ann_info(info)
+        return info
+        
     def _evaluate_single(self,
                          result_path,
                          logger=None,
