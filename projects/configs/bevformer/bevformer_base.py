@@ -2,8 +2,7 @@ _base_ = [
     '../datasets/custom_nus-3d.py',
     '../_base_/default_runtime.py'
 ]
-import sys
-sys.path.append(".")
+
 custom_imports = dict(imports=['projects.mmdet3d_plugin'], allow_failed_imports=False)
 
 # If point cloud range is changed, the models should also change their point

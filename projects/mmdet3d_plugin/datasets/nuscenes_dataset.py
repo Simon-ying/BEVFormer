@@ -9,7 +9,8 @@ import torch
 from nuscenes.eval.common.utils import quaternion_yaw, Quaternion
 from .nuscnes_eval import NuScenesEval_custom
 from projects.mmdet3d_plugin.models.utils.visual import save_tensor
-from mmcv.parallel import DataContainer as DC
+from mmengine.structures import BaseDataElement
+from mmdet3d.structures import Det3DDataSample
 import random
 
 
@@ -26,13 +27,16 @@ class CustomNuScenesDataset(NuScenesDataset):
         self.overlap_test = overlap_test
         self.bev_size = bev_size
         
-    def prepare_train_data(self, index):
-        """
-        Training data preparation.
+    def prepare_data(self, index):
+        """Data preparation for both training and testing stage.
+
+        Called by `__getitem__`  of dataset.
+
         Args:
             index (int): Index for accessing the target data.
+
         Returns:
-            dict: Training data dict of the corresponding index.
+            dict or None: Data dict of the corresponding index.
         """
         queue = []
         index_list = list(range(index-self.queue_length, index))
@@ -46,7 +50,7 @@ class CustomNuScenesDataset(NuScenesDataset):
                 return None
             self.pre_pipeline(input_dict)
             example = self.pipeline(input_dict)
-            if self.filter_empty_gt and \
+            if not self.test_mode and self.filter_empty_gt and \
                     (example is None or ~(example['gt_labels_3d']._data != -1).any()):
                 return None
             queue.append(example)
@@ -76,8 +80,8 @@ class CustomNuScenesDataset(NuScenesDataset):
                 metas_map[i]['can_bus'][-1] -= prev_angle
                 prev_pos = copy.deepcopy(tmp_pos)
                 prev_angle = copy.deepcopy(tmp_angle)
-        queue[-1]['img'] = DC(torch.stack(imgs_list), cpu_only=False, stack=True)
-        queue[-1]['img_metas'] = DC(metas_map, cpu_only=True)
+        queue[-1]['img'] = BaseDataElement(imgs=torch.stack(imgs_list))
+        queue[-1]['img_metas'] = Det3DDataSample(metainfo=metas_map)
         queue = queue[-1]
         return queue
 
@@ -163,21 +167,6 @@ class CustomNuScenesDataset(NuScenesDataset):
         can_bus[-1] = patch_angle
 
         return input_dict
-
-    def __getitem__(self, idx):
-        """Get item from infos according to the given index.
-        Returns:
-            dict: Data dictionary of the corresponding index.
-        """
-        if self.test_mode:
-            return self.prepare_test_data(idx)
-        while True:
-
-            data = self.prepare_train_data(idx)
-            if data is None:
-                idx = self._rand_another(idx)
-                continue
-            return data
 
     def _evaluate_single(self,
                          result_path,

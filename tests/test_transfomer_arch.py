@@ -1,8 +1,6 @@
 from mmdet.registry import MODELS
 from mmengine import Config
 import torch
-from torchviz import make_dot
-import hiddenlayer as hl
 from mmdet.structures import DetDataSample
 from mmengine.structures import InstanceData
 from mmdet3d.structures import Det3DDataSample
