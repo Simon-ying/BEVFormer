@@ -220,6 +220,7 @@ train_pipeline = [
      dict(
         type='LoadMultiViewImageFromFiles',
         to_float32=True,
+        num_views=6,
         backend_args=backend_args),
     dict(type='PhotoMetricDistortion3D'),
     dict(
