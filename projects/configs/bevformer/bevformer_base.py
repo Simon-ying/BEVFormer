@@ -325,8 +325,8 @@ val_dataloader = dict(
         test_mode=True,
         modality=input_modality,
         use_valid_flag=True,
-        backend_args=backend_args),
-        bev_size=(bev_h_, bev_w_))
+        backend_args=backend_args,
+        bev_size=(bev_h_, bev_w_)))
 
 optim_wrapper = dict(
     # TODO Add Amp

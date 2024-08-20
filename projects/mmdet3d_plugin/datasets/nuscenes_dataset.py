@@ -151,9 +151,9 @@ class CustomNuScenesDataset(NuScenesDataset):
                 ))
 
         if not self.test_mode:
-            input_dict['ann_info'] = self.get_ann_info(index)
+            input_dict['ann_info'] = self.parse_ann_info(info)
         if self.test_mode and self.load_eval_anns:
-            input_dict['eval_ann_info'] = self.get_ann_info(index)
+            input_dict['eval_ann_info'] = self.parse_ann_info(info)
 
         rotation = Quaternion(input_dict['ego2global_rotation'])
         translation = input_dict['ego2global_translation']
