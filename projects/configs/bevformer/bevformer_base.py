@@ -222,7 +222,7 @@ train_pipeline = [
         to_float32=True,
         num_views=6,
         backend_args=backend_args),
-    dict(type='PhotoMetricDistortion3D'),
+    dict(type='MultiViewPhotoMetricDistortion3D'),
     dict(
         type='LoadAnnotations3D',
         with_bbox_3d=True,
@@ -259,7 +259,7 @@ test_pipeline = [
 
 train_dataloader = dict(
     batch_size=1,
-    num_workers=4,
+    num_workers=1,
     dataset=dict(
         type=dataset_type,
         data_root=data_root,

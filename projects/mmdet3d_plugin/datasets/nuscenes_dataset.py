@@ -12,6 +12,7 @@ from projects.mmdet3d_plugin.models.utils.visual import save_tensor
 from mmengine.structures import BaseDataElement
 from mmdet3d.structures import Det3DDataSample
 import random
+from mmdet3d.structures import LiDARInstance3DBoxes
 
 
 @DATASETS.register_module()
@@ -50,7 +51,7 @@ class CustomNuScenesDataset(NuScenesDataset):
                 return None
             example = self.pipeline(input_dict)
             if not self.test_mode and self.filter_empty_gt and \
-                (example is None or ~(example['gt_labels_3d']._data != -1).any()):
+                (example is None or ~(example["data_samples"].gt_instances_3d.labels_3d != -1).any()):
                 return None
             queue.append(example)
         return self.union2one(queue)
@@ -104,7 +105,6 @@ class CustomNuScenesDataset(NuScenesDataset):
                 - ann_info (dict): Annotation info.
         """
         info = super().get_data_info(index)
-        import pdb;pdb.set_trace()
         # standard protocal modified from SECOND.Pytorch
         input_dict = dict(
             sample_idx=info['token'],
@@ -125,7 +125,16 @@ class CustomNuScenesDataset(NuScenesDataset):
             lidar2img_rts = []
             lidar2cam_rts = []
             cam_intrinsics = []
+            input_dict.update(
+                dict(
+                    images = dict()
+                )
+            )
             for cam_type, cam_info in info['cams'].items():
+                cam_dict = dict()
+                cam_dict["img_path"] = cam_info['data_path']
+                cam_dict["cam2img"] = cam_info['cam_intrinsic']
+
                 image_paths.append(cam_info['data_path'])
                 # obtain lidar to image transformation matrix
                 lidar2cam_r = np.linalg.inv(cam_info['sensor2lidar_rotation'])
@@ -134,6 +143,10 @@ class CustomNuScenesDataset(NuScenesDataset):
                 lidar2cam_rt = np.eye(4)
                 lidar2cam_rt[:3, :3] = lidar2cam_r.T
                 lidar2cam_rt[3, :3] = -lidar2cam_t
+
+                cam_dict["lidar2cam"] = lidar2cam_rt.T
+                input_dict["images"][cam_type] = cam_dict
+
                 intrinsic = cam_info['cam_intrinsic']
                 viewpad = np.eye(4)
                 viewpad[:intrinsic.shape[0], :intrinsic.shape[1]] = intrinsic
@@ -169,6 +182,28 @@ class CustomNuScenesDataset(NuScenesDataset):
 
         return input_dict
 
+    def _filter_with_mask(self, ann_info: dict) -> dict:
+        """Remove annotations that do not need to be cared.
+
+        Args:
+            ann_info (dict): Dict of annotation infos.
+
+        Returns:
+            dict: Annotations after filtering.
+        """
+        filtered_annotations = {}
+        if self.use_valid_flag:
+            filter_mask = ann_info['valid_flag']
+        else:
+            filter_mask = ann_info['num_lidar_pts'] > 0
+            # filter_mask = ann_info['']
+        for key in ann_info.keys():
+            if key != 'instances':
+                filtered_annotations[key] = (ann_info[key][filter_mask])
+            else:
+                filtered_annotations[key] = ann_info[key]
+        return filtered_annotations
+    
     def parse_ann_info(self, info: dict):
         """Process the `instances` in data info to `ann_info`.
 
@@ -199,15 +234,15 @@ class CustomNuScenesDataset(NuScenesDataset):
         else:
             ann_info = dict()
             for ann_name in ann_list:
-                temp_anns = info[ann_name]
+                temp_anns = copy.deepcopy(info[ann_name])
                 if ann_name in name_mapping:
                     mapped_ann_name = name_mapping[ann_name]
                 else:
                     mapped_ann_name = ann_name
                 if ann_name == "gt_names":
                     for ind, name in enumerate(temp_anns):
-                        if name in self.METAINFO['classes']:
-                            temp_anns[ind] = self.METAINFO['classes'].index(name)
+                        if name in self.metainfo['classes']:
+                            temp_anns[ind] = self.metainfo['classes'].index(name)
                         else:
                             temp_anns[ind] = -1
                     temp_anns = np.array(temp_anns).astype(np.int64)
@@ -221,8 +256,19 @@ class CustomNuScenesDataset(NuScenesDataset):
             for label in ann_info['gt_labels_3d']:
                 if label != -1:
                     self.num_ins_per_cat[label] += 1
+            ann_info = self._filter_with_mask(ann_info)
+            new_ann_info = dict()
+            if self.with_velocity:
+                ann_info['gt_bboxes_3d'] = np.hstack(
+                    (ann_info["gt_bboxes_3d"], 
+                     ann_info["velocities"]))
+            gt_bboxes_3d = LiDARInstance3DBoxes(
+                ann_info['gt_bboxes_3d'],
+                box_dim=ann_info['gt_bboxes_3d'].shape[-1],
+                origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
+            ann_info['gt_bboxes_3d'] = gt_bboxes_3d
 
-        return ann_info
+            return ann_info
     
     def parse_data_info(self, info: dict):
         """Process the raw data info.
