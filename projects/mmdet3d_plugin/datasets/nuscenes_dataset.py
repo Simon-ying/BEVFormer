@@ -104,6 +104,7 @@ class CustomNuScenesDataset(NuScenesDataset):
                 - ann_info (dict): Annotation info.
         """
         info = super().get_data_info(index)
+        import pdb;pdb.set_trace()
         # standard protocal modified from SECOND.Pytorch
         input_dict = dict(
             sample_idx=info['token'],
