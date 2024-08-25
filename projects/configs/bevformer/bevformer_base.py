@@ -35,11 +35,12 @@ queue_length = 4 # each sequence contains `queue_length` frames.
 model = dict(
     type='BEVFormer',
     data_preprocessor=dict(
-        type='Det3DDataPreprocessor',
+        type='CustomDet3DDataPreprocessor',
         mean=[103.530, 116.280, 123.675],
         std=[57.375, 57.120, 58.395],
         bgr_to_rgb=False,
-        pad_size_divisor=32),
+        pad_size_divisor=32,
+        queue_length=queue_length),
     use_grid_mask=True,
     video_test_mode=True,
     img_backbone=dict(
@@ -230,8 +231,8 @@ train_pipeline = [
         with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectNameFilter', classes=class_names),
-    dict(
-        type='ResizeCropFlipImage', data_aug_conf=ida_aug_conf, training=True),
+    # dict(
+    #     type='ResizeCropFlipImage', data_aug_conf=ida_aug_conf, training=True),
     dict(
         type='GlobalRotScaleTransImage',
         rot_range=[-0.3925, 0.3925],
@@ -240,7 +241,7 @@ train_pipeline = [
         reverse_angle=False,
         training=True),
     dict(
-        type='Pack3DDetInputs',
+        type='CustomPack3DDetInputs',
         keys=[
             'img', 'gt_bboxes_3d', 'gt_labels_3d'
         ])
@@ -251,14 +252,14 @@ test_pipeline = [
         type='LoadMultiViewImageFromFiles',
         to_float32=True,
         backend_args=backend_args),
-    dict(
-        type='ResizeCropFlipImage', data_aug_conf=ida_aug_conf,
-        training=False),
-    dict(type='Pack3DDetInputs', keys=['img'])
+    # dict(
+    #     type='ResizeCropFlipImage', data_aug_conf=ida_aug_conf,
+    #     training=False),
+    dict(type='CustomPack3DDetInputs', keys=['img'])
 ]
 
 train_dataloader = dict(
-    batch_size=1,
+    batch_size=2,
     num_workers=1,
     dataset=dict(
         type=dataset_type,

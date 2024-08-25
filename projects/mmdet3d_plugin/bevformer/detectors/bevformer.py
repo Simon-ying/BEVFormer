@@ -73,8 +73,6 @@ class BEVFormer(MVXTwoStageDetector):
         B = img.size(0)
         if self.with_img_backbone and img is not None:
             input_shape = img.shape[-2:]
-            for img_meta in input_metas:
-                img_meta.update(input_shape=input_shape)
 
             if img.dim() == 5 and img.size(0) == 1:
                 img = torch.squeeze(img, dim=1)
@@ -149,14 +147,14 @@ class BEVFormer(MVXTwoStageDetector):
         with torch.no_grad():
             prev_bev = None
             bs, len_queue, num_cams, C, H, W = imgs_queue.shape
-            imgs_queue = imgs_queue.view(bs*len_queue, num_cams, C, H, W)
+            imgs_queue = imgs_queue.reshape(bs*len_queue, num_cams, C, H, W)
             img_feats_list = self.extract_feat(
                 imgs=imgs_queue,
                 batch_input_metas=img_metas_list,
                 len_queue=len_queue)
             
             for i in range(len_queue):
-                img_metas = [each[f"{i}"] for each in img_metas_list]
+                img_metas = img_metas_list[i]
                 if not img_metas[0]['prev_bev_exists']:
                     prev_bev = None
                 img_feats = [each_scale[:, i] for each_scale in img_feats_list]
@@ -176,7 +174,7 @@ class BEVFormer(MVXTwoStageDetector):
         prev_img_metas = copy.deepcopy(batch_input_metas)
         prev_bev = self.obtain_history_bev(prev_img, prev_img_metas)
         
-        img_metas = [each[f"{len_queue-1}"] for each in batch_input_metas]
+        img_metas = [each[len_queue-1] for each in batch_input_metas]
         if not img_metas[0]['prev_bev_exists']:
             prev_bev = None
         img_feats = self.extract_feat(imgs=imgs, batch_input_metas=img_metas)
@@ -210,11 +208,13 @@ class BEVFormer(MVXTwoStageDetector):
         prev_img = imgs[:, :-1, ...]
         imgs = imgs[:, -1, ...]
 
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
+        batch_input_metas = {}
+        for queue_id in range(len_queue):
+            batch_input_metas[queue_id] = [item.metainfo for item in batch_data_samples[queue_id]]
         prev_img_metas = copy.deepcopy(batch_input_metas)
         prev_bev = self.obtain_history_bev(prev_img, prev_img_metas)
 
-        img_metas = [each[len_queue-1] for each in batch_input_metas]
+        img_metas = batch_input_metas[len_queue-1]
         if not img_metas[0]['prev_bev_exists']:
             prev_bev = None
         img_feats = self.extract_feat(imgs=imgs, batch_input_metas=img_metas)

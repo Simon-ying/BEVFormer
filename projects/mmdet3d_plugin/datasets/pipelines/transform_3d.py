@@ -305,7 +305,7 @@ class GlobalRotScaleTransImage(BaseTransform):
 
         num_view = len(results['lidar2cam'])
         for view in range(num_view):
-            results['lidar2cam'][view] = (torch.tensor(
+            results['lidar2cam'][view] = ((
                 rot_mat_inv.T
                 @ results['lidar2cam'][view].T).float()).T.numpy()
 

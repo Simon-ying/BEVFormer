@@ -13,7 +13,7 @@ from mmengine.structures import BaseDataElement
 from mmdet3d.structures import Det3DDataSample
 import random
 from mmdet3d.structures import LiDARInstance3DBoxes
-
+from mmengine.structures import InstanceData
 
 @DATASETS.register_module()
 class CustomNuScenesDataset(NuScenesDataset):
@@ -58,30 +58,33 @@ class CustomNuScenesDataset(NuScenesDataset):
 
 
     def union2one(self, queue):
-        imgs_list = [each['img'].data for each in queue]
+        imgs_list = [each['inputs']['img'] for each in queue]
+
         metas_map = {}
         prev_scene_token = None
         prev_pos = None
         prev_angle = None
         for i, each in enumerate(queue):
-            metas_map[i] = each['img_metas'].data
-            if metas_map[i]['scene_token'] != prev_scene_token:
-                metas_map[i]['prev_bev_exists'] = False
-                prev_scene_token = metas_map[i]['scene_token']
-                prev_pos = copy.deepcopy(metas_map[i]['can_bus'][:3])
-                prev_angle = copy.deepcopy(metas_map[i]['can_bus'][-1])
-                metas_map[i]['can_bus'][:3] = 0
-                metas_map[i]['can_bus'][-1] = 0
+            metas_map[i] = each['data_samples']
+            metainfo_i = metas_map[i].metainfo
+            if metainfo_i['scene_token'] != prev_scene_token:
+                metainfo_i['prev_bev_exists'] = False
+                prev_scene_token = metainfo_i['scene_token']
+                prev_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
+                prev_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
+                metainfo_i['can_bus'][:3] = 0
+                metainfo_i['can_bus'][-1] = 0
             else:
-                metas_map[i]['prev_bev_exists'] = True
-                tmp_pos = copy.deepcopy(metas_map[i]['can_bus'][:3])
-                tmp_angle = copy.deepcopy(metas_map[i]['can_bus'][-1])
-                metas_map[i]['can_bus'][:3] -= prev_pos
-                metas_map[i]['can_bus'][-1] -= prev_angle
+                metainfo_i['prev_bev_exists'] = True
+                tmp_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
+                tmp_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
+                metainfo_i['can_bus'][:3] -= prev_pos
+                metainfo_i['can_bus'][-1] -= prev_angle
                 prev_pos = copy.deepcopy(tmp_pos)
                 prev_angle = copy.deepcopy(tmp_angle)
-        queue[-1]['img'] = BaseDataElement(imgs=torch.stack(imgs_list))
-        queue[-1]['img_metas'] = Det3DDataSample(metainfo=metas_map)
+            metas_map[i].set_metainfo(metainfo_i)
+        queue[-1]['inputs']['img'] = torch.stack(imgs_list)
+        queue[-1]['data_samples'] = metas_map
         queue = queue[-1]
         return queue
 
