@@ -126,7 +126,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
         reference_points_cam = reference_points_cam[..., 0:2] / torch.maximum(
             reference_points_cam[..., 2:3], torch.ones_like(reference_points_cam[..., 2:3]) * eps)
 
-        import pdb; pdb.set_trace()
         reference_points_cam[..., 0] /= img_metas[0]['img_shape'][1]
         reference_points_cam[..., 1] /= img_metas[0]['img_shape'][0]
 

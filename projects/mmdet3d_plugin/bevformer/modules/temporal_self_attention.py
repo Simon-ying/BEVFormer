@@ -103,6 +103,7 @@ class TemporalSelfAttention(BaseModule):
 
     def init_weights(self):
         """Default initialization for Parameters of Module."""
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         constant_init(self.sampling_offsets, 0.)
         thetas = torch.arange(
             self.num_heads,
@@ -111,8 +112,8 @@ class TemporalSelfAttention(BaseModule):
         grid_init = (grid_init /
                      grid_init.abs().max(-1, keepdim=True)[0]).view(
             self.num_heads, 1, 1,
-            2).repeat(1, self.num_levels*self.num_bev_queue, self.num_points, 1)
-
+            2).repeat(1, self.num_levels*self.num_bev_queue, self.num_points, 1).to(device)
+        
         for i in range(self.num_points):
             grid_init[:, :, i, :] *= i + 1
 
@@ -199,7 +200,6 @@ class TemporalSelfAttention(BaseModule):
 
         value = value.reshape(bs*self.num_bev_queue,
                               num_value, self.num_heads, -1)
-
         sampling_offsets = self.sampling_offsets(query)
         sampling_offsets = sampling_offsets.view(
             bs, num_query, self.num_heads,  self.num_bev_queue, self.num_levels, self.num_points, 2)

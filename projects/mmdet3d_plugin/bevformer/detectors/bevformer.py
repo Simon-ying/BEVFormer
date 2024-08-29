@@ -73,12 +73,10 @@ class BEVFormer(MVXTwoStageDetector):
         B = img.size(0)
         if self.with_img_backbone and img is not None:
             input_shape = img.shape[-2:]
-
-            if img.dim() == 5 and img.size(0) == 1:
-                img = torch.squeeze(img, dim=1)
-            elif img.dim() == 5 and img.size(0) > 1:
+            if img.dim() == 5:
                 B, N, C, H, W = img.size()
-                img = img.view(B * N, C, H, W)
+                img = img.view(B * N, C, H, W)                
+                
             if self.use_grid_mask:
                 img = self.grid_mask(img)
             img_feats = self.img_backbone(img)
