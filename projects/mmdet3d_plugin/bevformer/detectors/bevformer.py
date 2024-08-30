@@ -131,9 +131,9 @@ class BEVFormer(MVXTwoStageDetector):
         """
         outs = self.pts_bbox_head(
             pts_feats, img_metas, prev_bev)
-        gt_bboxes_3d = batch_data_samples.gt_instances_3d.bboxes_3d
-        gt_labels_3d = batch_data_samples.gt_instances_3d.labels_3d
-        loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
+        import pdb;pdb.set_trace()
+        gt_index = len(batch_data_samples) - 1
+        loss_inputs = [batch_data_samples[gt_index], outs]
         losses = self.pts_bbox_head.loss(*loss_inputs, img_metas=img_metas)
         return losses
 

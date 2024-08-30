@@ -339,6 +339,7 @@ class CustomMSDeformableAttention(BaseModule):
 
     def init_weights(self):
         """Default initialization for Parameters of Module."""
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         constant_init(self.sampling_offsets, 0.)
         thetas = torch.arange(
             self.num_heads,
@@ -351,7 +352,7 @@ class CustomMSDeformableAttention(BaseModule):
         for i in range(self.num_points):
             grid_init[:, :, i, :] *= i + 1
 
-        self.sampling_offsets.bias.data = grid_init.view(-1)
+        self.sampling_offsets.bias.data = grid_init.view(-1).to(device)
         constant_init(self.attention_weights, val=0., bias=0.)
         xavier_init(self.value_proj, distribution='uniform', bias=0.)
         xavier_init(self.output_proj, distribution='uniform', bias=0.)

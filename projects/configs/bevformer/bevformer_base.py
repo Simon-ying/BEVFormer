@@ -260,7 +260,7 @@ test_pipeline = [
 
 train_dataloader = dict(
     batch_size=1,
-    num_workers=1,
+    num_workers=4,
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
@@ -332,8 +332,8 @@ val_dataloader = dict(
 
 optim_wrapper = dict(
     # TODO Add Amp
-    # type='AmpOptimWrapper',
-    # loss_scale='dynamic',
+    type='AmpOptimWrapper',
+    loss_scale='dynamic',
     optimizer=dict(type='AdamW', lr=2e-4, weight_decay=0.01),
     paramwise_cfg=dict(custom_keys={
         'img_backbone': dict(lr_mult=0.1),

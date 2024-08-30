@@ -237,34 +237,17 @@ class BEVFormerHead(DETRHead):
     def _get_target_single(self,
                            cls_score,
                            bbox_pred,
-                           gt_labels,
-                           gt_bboxes,
-                           gt_bboxes_ignore=None):
-        """"Compute regression and classification targets for one image.
-        Outputs from a single decoder layer of a single feature level are used.
-        Args:
-            cls_score (Tensor): Box score logits from a single decoder layer
-                for one image. Shape [num_query, cls_out_channels].
-            bbox_pred (Tensor): Sigmoid outputs from a single decoder layer
-                for one image, with normalized coordinate (cx, cy, w, h) and
-                shape [num_query, 4].
-            gt_bboxes (Tensor): Ground truth bboxes for one image with
-                shape (num_gts, 4) in [tl_x, tl_y, br_x, br_y] format.
-            gt_labels (Tensor): Ground truth class indices for one image
-                with shape (num_gts, ).
-            gt_bboxes_ignore (Tensor, optional): Bounding boxes
-                which can be ignored. Default None.
-        Returns:
-            tuple[Tensor]: a tuple containing the following for one image.
-                - labels (Tensor): Labels of each image.
-                - label_weights (Tensor]): Label weights of each image.
-                - bbox_targets (Tensor): BBox targets of each image.
-                - bbox_weights (Tensor): BBox weights of each image.
-                - pos_inds (Tensor): Sampled positive indices for each image.
-                - neg_inds (Tensor): Sampled negative indices for each image.
-        """
+                           gt_instances_3d):
+        """Compute regression and classification targets for a single image."""
+        # turn bottm center into gravity center
+        gt_bboxes = gt_instances_3d.bboxes_3d  # [num_gt, 9]
+        gt_bboxes = torch.cat(
+            (gt_bboxes.gravity_center, gt_bboxes.tensor[:, 3:]), dim=1)
+
+        gt_labels = gt_instances_3d.labels_3d  # [num_gt, num_cls]
 
         num_bboxes = bbox_pred.size(0)
+
         # assigner and sampler
         gt_c = gt_bboxes.shape[-1]
 
@@ -415,39 +398,25 @@ class BEVFormerHead(DETRHead):
         return loss_cls, loss_bbox
 
     def loss(self,
-             gt_bboxes_list,
-             gt_labels_list,
+             batch_gt_instances_3d,
              preds_dicts,
-             gt_bboxes_ignore=None,
+             batch_gt_instances_3d_ignore=None,
              img_metas=None):
-        """"Loss function.
-        Args:
+        """Compute loss of the head.
 
-            gt_bboxes_list (list[Tensor]): Ground truth bboxes for each image
-                with shape (num_gts, 4) in [tl_x, tl_y, br_x, br_y] format.
-            gt_labels_list (list[Tensor]): Ground truth class indices for each
-                image with shape (num_gts, ).
-            preds_dicts:
-                all_cls_scores (Tensor): Classification score of all
-                    decoder layers, has shape
-                    [nb_dec, bs, num_query, cls_out_channels].
-                all_bbox_preds (Tensor): Sigmoid regression
-                    outputs of all decode layers. Each is a 4D-tensor with
-                    normalized coordinate format (cx, cy, w, h) and shape
-                    [nb_dec, bs, num_query, 4].
-                enc_cls_scores (Tensor): Classification scores of
-                    points on encode feature map , has shape
-                    (N, h*w, num_classes). Only be passed when as_two_stage is
-                    True, otherwise is None.
-                enc_bbox_preds (Tensor): Regression results of each points
-                    on the encode feature map, has shape (N, h*w, 4). Only be
-                    passed when as_two_stage is True, otherwise is None.
-            gt_bboxes_ignore (list[Tensor], optional): Bounding boxes
-                which can be ignored for each image. Default None.
+        Args:
+            batch_gt_instances_3d (list[:obj:`InstanceData`]): Batch of
+                gt_instance_3d.  It usually includes ``bboxes_3d``、`
+                `labels_3d``、``depths``、``centers_2d`` and attributes.
+                gt_instance.  It usually includes ``bboxes``、``labels``.
+            batch_gt_instances_3d_ignore (list[:obj:`InstanceData`], Optional):
+                NOT supported.
+                Defaults to None.
+
         Returns:
             dict[str, Tensor]: A dictionary of loss components.
         """
-        assert gt_bboxes_ignore is None, \
+        assert batch_gt_instances_3d_ignore is None, \
             f'{self.__class__.__name__} only supports ' \
             f'for gt_bboxes_ignore setting to None.'
 
@@ -457,22 +426,13 @@ class BEVFormerHead(DETRHead):
         enc_bbox_preds = preds_dicts['enc_bbox_preds']
 
         num_dec_layers = len(all_cls_scores)
-        device = gt_labels_list[0].device
-
-        gt_bboxes_list = [torch.cat(
-            (gt_bboxes.gravity_center, gt_bboxes.tensor[:, 3:]),
-            dim=1).to(device) for gt_bboxes in gt_bboxes_list]
-
-        all_gt_bboxes_list = [gt_bboxes_list for _ in range(num_dec_layers)]
-        all_gt_labels_list = [gt_labels_list for _ in range(num_dec_layers)]
-        all_gt_bboxes_ignore_list = [
-            gt_bboxes_ignore for _ in range(num_dec_layers)
+        batch_gt_instances_3d_list = [
+            batch_gt_instances_3d for _ in range(num_dec_layers)
         ]
 
         losses_cls, losses_bbox = multi_apply(
             self.loss_single, all_cls_scores, all_bbox_preds,
-            all_gt_bboxes_list, all_gt_labels_list,
-            all_gt_bboxes_ignore_list)
+            batch_gt_instances_3d_list)
 
         loss_dict = dict()
         # loss of proposal generated from encode feature map.
