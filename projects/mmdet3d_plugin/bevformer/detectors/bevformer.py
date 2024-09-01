@@ -75,7 +75,7 @@ class BEVFormer(MVXTwoStageDetector):
             input_shape = img.shape[-2:]
             if img.dim() == 5:
                 B, N, C, H, W = img.size()
-                img = img.view(B * N, C, H, W)                
+                img = img.reshape(B * N, C, H, W)                
                 
             if self.use_grid_mask:
                 img = self.grid_mask(img)

@@ -67,7 +67,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
             ref_3d = torch.stack((xs, ys, zs), -1)
             ref_3d = ref_3d.permute(0, 3, 1, 2).flatten(2).permute(0, 2, 1)
             ref_3d = ref_3d[None].repeat(bs, 1, 1, 1)
-            return ref_3d
+            return ref_3d #(bs, 4, bev_h*bev_w, 3)
 
         # reference points on 2D bev plane, used in temporal self-attention (TSA).
         elif dim == '2d':
@@ -86,6 +86,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
 
     # This function must use fp32!!!
     def point_sampling(self, reference_points, pc_range,  img_metas):
+        # reference_points: (bs, 4, bev_h*bev_w, 3)
         # NOTE: close tf32 here.
         allow_tf32 = torch.backends.cuda.matmul.allow_tf32
         torch.backends.cuda.matmul.allow_tf32 = False
@@ -113,23 +114,23 @@ class BEVFormerEncoder(TransformerLayerSequence):
         num_cam = lidar2img.size(1)
 
         reference_points = reference_points.view(
-            D, B, 1, num_query, 4).repeat(1, 1, num_cam, 1, 1).unsqueeze(-1)
+            D, B, 1, num_query, 4).repeat(1, 1, num_cam, 1, 1).unsqueeze(-1) # (num_points_in_pillar, bs, num_cam, W*H, 4, 1)
 
         lidar2img = lidar2img.view(
             1, B, num_cam, 1, 4, 4).repeat(D, 1, 1, num_query, 1, 1)
 
         reference_points_cam = torch.matmul(lidar2img.to(torch.float32),
-                                            reference_points.to(torch.float32)).squeeze(-1)
+                                            reference_points.to(torch.float32)).squeeze(-1) # (num_points_in_pillar, bs, num_cam, W*H, 4)
         eps = 1e-5
 
         bev_mask = (reference_points_cam[..., 2:3] > eps)
         reference_points_cam = reference_points_cam[..., 0:2] / torch.maximum(
-            reference_points_cam[..., 2:3], torch.ones_like(reference_points_cam[..., 2:3]) * eps)
+            reference_points_cam[..., 2:3], torch.ones_like(reference_points_cam[..., 2:3]) * eps) # (num_points_in_pillar, bs, num_cam, W*H, 2)
 
         reference_points_cam[..., 0] /= img_metas[0]['img_shape'][1]
         reference_points_cam[..., 1] /= img_metas[0]['img_shape'][0]
 
-        bev_mask = (bev_mask & (reference_points_cam[..., 1:2] > 0.0)
+        bev_mask = (bev_mask & (reference_points_cam[..., 1:2] > 0.0) # (num_points_in_pillar, bs, num_cam, W*H, 1)
                     & (reference_points_cam[..., 1:2] < 1.0)
                     & (reference_points_cam[..., 0:1] < 1.0)
                     & (reference_points_cam[..., 0:1] > 0.0))
@@ -139,8 +140,8 @@ class BEVFormerEncoder(TransformerLayerSequence):
             bev_mask = bev_mask.new_tensor(
                 np.nan_to_num(bev_mask.cpu().numpy()))
 
-        reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4)
-        bev_mask = bev_mask.permute(2, 1, 3, 0, 4).squeeze(-1)
+        reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4) # (num_cam, bs, W*H, num_points_in_pillar, 2)
+        bev_mask = bev_mask.permute(2, 1, 3, 0, 4).squeeze(-1) # (num_cam, bs, W*H, num_points_in_pillar)
 
         torch.backends.cuda.matmul.allow_tf32 = allow_tf32
         torch.backends.cudnn.allow_tf32 = allow_tf32
@@ -209,7 +210,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
         else:
             hybird_ref_2d = torch.stack([ref_2d, ref_2d], 1).reshape(
                 bs*2, len_bev, num_bev_level, 2)
-
         for lid, layer in enumerate(self.layers):
             output = layer(
                 bev_query,

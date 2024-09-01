@@ -153,9 +153,9 @@ class PerceptionTransformer(BaseModule):
         # add can bus signals
         can_bus = bev_queries.new_tensor(
             [each['can_bus'] for each in kwargs['img_metas']])  # [bs, 18]
-        can_bus = self.can_bus_mlp(can_bus)[None, :, :]
+        can_bus = self.can_bus_mlp(can_bus)[None, :, :] # [1, bs, dim]
         bev_queries = bev_queries + can_bus * int(self.use_can_bus)
-
+        
         feat_flatten = []
         spatial_shapes = []
         for lvl, feat in enumerate(mlvl_feats):
@@ -261,7 +261,6 @@ class PerceptionTransformer(BaseModule):
         reference_points = self.reference_points(query_pos)
         reference_points = reference_points.sigmoid()
         init_reference_out = reference_points
-
         # [bs, num_queries, dim] --> [num_queries, bs, dim]
         # query = query.permute(1, 0, 2)
         # query_pos = query_pos.permute(1, 0, 2)

@@ -171,7 +171,6 @@ class TemporalSelfAttention(BaseModule):
         Returns:
              Tensor: forwarded results with shape [num_query, bs, embed_dims].
         """
-
         if value is None:
             assert self.batch_first
             bs, len_bev, c = query.shape
@@ -192,9 +191,8 @@ class TemporalSelfAttention(BaseModule):
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
         assert self.num_bev_queue == 2
 
-        query = torch.cat([value[:bs], query], -1)
-        value = self.value_proj(value)
-
+        query = torch.cat([value[:bs], query], -1) # (bs, num_query ,embed_dims*2)
+        value = self.value_proj(value) 
         if key_padding_mask is not None:
             value = value.masked_fill(key_padding_mask[..., None], 0.0)
 

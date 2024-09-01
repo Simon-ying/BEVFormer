@@ -134,7 +134,6 @@ class SpatialCrossAttention(BaseModule):
             index_query_per_img = mask_per_img[0].sum(-1).nonzero().squeeze(-1)
             indexes.append(index_query_per_img)
         max_len = max([len(each) for each in indexes])
-
         # each camera only interacts with its corresponding BEV queries. This step can  greatly save GPU memory.
         queries_rebatch = query.new_zeros(
             [bs, self.num_cams, max_len, self.embed_dims])
