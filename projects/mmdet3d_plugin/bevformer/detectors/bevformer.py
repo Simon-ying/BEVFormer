@@ -75,7 +75,7 @@ class BEVFormer(MVXTwoStageDetector):
             input_shape = img.shape[-2:]
             if img.dim() == 5:
                 B, N, C, H, W = img.size()
-                img = img.reshape(B * N, C, H, W)                
+                img = img.reshape(B * N, C, H, W)
                 
             if self.use_grid_mask:
                 img = self.grid_mask(img)
@@ -207,7 +207,6 @@ class BEVFormer(MVXTwoStageDetector):
         len_queue = imgs.size(1)
         prev_img = imgs[:, :-1, ...]
         imgs = imgs[:, -1, ...]
-
         batch_input_metas = {}
         for queue_id in range(len_queue):
             batch_input_metas[queue_id] = [item.metainfo for item in batch_data_samples[queue_id]]
@@ -225,15 +224,20 @@ class BEVFormer(MVXTwoStageDetector):
         losses.update(losses_pts)
         return losses
 
+    def aug_test(self, batch_inputs_dict, batch_data_samples,  **kwargs):
+        return self.predict(batch_inputs_dict, batch_data_samples,  **kwargs)
+    
     def predict(self, batch_inputs_dict,
                 batch_data_samples, **kwargs):
-        img_metas = [item.metainfo for item in batch_data_samples]
-        for var, name in [(img_metas, 'img_metas')]:
-            if not isinstance(var, list):
-                raise TypeError('{} must be a list, but got {}'.format(
-                    name, type(var)))
         img = batch_inputs_dict.get('imgs', None)
-
+        len_queue = img.size(1)
+        img_metas = {}
+        for queue_id in range(len_queue):
+            img_metas[queue_id] = [item.metainfo for item in batch_data_samples[queue_id]]
+        for var, name in [(img_metas, 'img_metas')]:
+            if not isinstance(var, dict):
+                raise TypeError('{} must be a dict, but got {}'.format(
+                    name, type(var)))
         if img_metas[0][0]['scene_token'] != self.prev_frame_info['scene_token']:
             # the first sample of each scene is truncated
             self.prev_frame_info['prev_bev'] = None

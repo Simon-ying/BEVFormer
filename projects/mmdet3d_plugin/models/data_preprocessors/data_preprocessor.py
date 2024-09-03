@@ -102,7 +102,7 @@ class CustomDet3DDataPreprocessor(DetDataPreprocessor):
                  boxtype2tensor: bool = True,
                  non_blocking: bool = False,
                  batch_augments: Optional[List[dict]] = None,
-                 queue_length: int = 4) -> None:
+                 queue_length: int = 2) -> None:
         super(CustomDet3DDataPreprocessor, self).__init__(
             mean=mean,
             std=std,
@@ -205,7 +205,6 @@ class CustomDet3DDataPreprocessor(DetDataPreprocessor):
                 for batch_aug in self.batch_augments:
                     imgs, data_samples = batch_aug(imgs, data_samples)
             batch_inputs['imgs'] = imgs
-
         return {'inputs': batch_inputs, 'data_samples': data_samples}
 
     def preprocess_img(self, _batch_img: Tensor) -> Tensor:
@@ -253,9 +252,15 @@ class CustomDet3DDataPreprocessor(DetDataPreprocessor):
                         _batch_img = [
                             self.preprocess_img(_img) for _img in _batch_img
                         ]
-
                         _batch_img = torch.stack(_batch_img, dim=0)
-
+                    elif img_dim == 5:
+                        queue_length, num_cam, C, H, W = _batch_img.size()
+                        _batch_img = _batch_img.view(queue_length*num_cam, C, H, W)
+                        _batch_img = [
+                            self.preprocess_img(_img) for _img in _batch_img
+                        ]
+                        _batch_img = torch.stack(_batch_img, dim=0)
+                        _batch_img = _batch_img.view(queue_length, num_cam, C, H, W)
                     batch_imgs.append(_batch_img)
 
                 # Pad and stack Tensor.
@@ -314,11 +319,12 @@ class CustomDet3DDataPreprocessor(DetDataPreprocessor):
                     # mean multiview input, select one of the
                     # image to calculate the pad shape
                     ori_input = ori_input[0]
+                # ori_input: (queue_length, num_cam, C, H, W)
                 pad_h = int(
-                    np.ceil(ori_input.shape[1] /
+                    np.ceil(ori_input.shape[-2] /
                             self.pad_size_divisor)) * self.pad_size_divisor
                 pad_w = int(
-                    np.ceil(ori_input.shape[2] /
+                    np.ceil(ori_input.shape[-1] /
                             self.pad_size_divisor)) * self.pad_size_divisor
                 batch_pad_shape.append((pad_h, pad_w))
         # Process data with `default_collate`.
@@ -328,10 +334,10 @@ class CustomDet3DDataPreprocessor(DetDataPreprocessor):
                 'or a list of tensor, but got a tensor with shape: '
                 f'{_batch_inputs.shape}')
             pad_h = int(
-                np.ceil(_batch_inputs.shape[1] /
+                np.ceil(_batch_inputs.shape[-2] /
                         self.pad_size_divisor)) * self.pad_size_divisor
             pad_w = int(
-                np.ceil(_batch_inputs.shape[2] /
+                np.ceil(_batch_inputs.shape[-1] /
                         self.pad_size_divisor)) * self.pad_size_divisor
             batch_pad_shape = [(pad_h, pad_w)] * _batch_inputs.shape[0]
         else:
