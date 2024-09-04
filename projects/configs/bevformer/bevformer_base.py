@@ -299,6 +299,14 @@ val_dataloader = dict(
         backend_args=backend_args,
         bev_size=(bev_h_, bev_w_)))
 
+test_evaluator = dict(
+    ann_file=data_root+'/nuscenes_infos_temporal_val.pkl',
+    backend_args=None,
+    data_root=data_root,
+    metric='bbox',
+    type='NuScenesMetric')
+val_evaluator = test_evaluator
+
 optim_wrapper = dict(
     # TODO Add Amp
     type='AmpOptimWrapper',

@@ -492,7 +492,6 @@ class BEVFormerHead(DETRHead):
             preds = preds_dicts[i]
             bboxes = preds['bboxes']
             bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
-            bboxes = img_metas[i]['box_type_3d'](bboxes, self.code_size - 1)
 
             results.bboxes_3d = bboxes
             results.scores_3d = preds['scores']

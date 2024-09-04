@@ -115,7 +115,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
 
         reference_points = reference_points.view(
             D, B, 1, num_query, 4).repeat(1, 1, num_cam, 1, 1).unsqueeze(-1) # (num_points_in_pillar, bs, num_cam, W*H, 4, 1)
-
         lidar2img = lidar2img.view(
             1, B, num_cam, 1, 4, 4).repeat(D, 1, 1, num_query, 1, 1)
 
@@ -180,7 +179,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
                 return_intermediate is `False`, otherwise it has shape
                 [num_layers, num_query, bs, embed_dims].
         """
-
         output = bev_query
         intermediate = []
 

@@ -108,7 +108,6 @@ class PerceptionTransformer(BaseModule):
         """
         obtain bev features.
         """
-
         bs = mlvl_feats[0].size(0)
         bev_queries = bev_queries.unsqueeze(1).repeat(1, bs, 1)
         bev_pos = bev_pos.flatten(2).permute(2, 0, 1) # bev_pos: [bev_h*bev_w, bs, num_feats*2]

@@ -66,22 +66,23 @@ class CustomNuScenesDataset(NuScenesDataset):
         prev_angle = None
         for i, each in enumerate(queue):
             metas_map[i] = each['data_samples']
-            metainfo_i = metas_map[i].metainfo
-            if metainfo_i['scene_token'] != prev_scene_token:
-                metainfo_i['prev_bev_exists'] = False
-                prev_scene_token = metainfo_i['scene_token']
-                prev_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
-                prev_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
-                metainfo_i['can_bus'][:3] = 0
-                metainfo_i['can_bus'][-1] = 0
-            else:
-                metainfo_i['prev_bev_exists'] = True
-                tmp_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
-                tmp_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
-                metainfo_i['can_bus'][:3] -= prev_pos
-                metainfo_i['can_bus'][-1] -= prev_angle
-                prev_pos = copy.deepcopy(tmp_pos)
-                prev_angle = copy.deepcopy(tmp_angle)
+            metainfo_i = copy.deepcopy(metas_map[i].metainfo)
+            if not self.test_mode:
+                if metainfo_i['scene_token'] != prev_scene_token:
+                    metainfo_i['prev_bev_exists'] = False
+                    prev_scene_token = metainfo_i['scene_token']
+                    prev_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
+                    prev_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
+                    metainfo_i['can_bus'][:3] = 0
+                    metainfo_i['can_bus'][-1] = 0
+                else:
+                    metainfo_i['prev_bev_exists'] = True
+                    tmp_pos = copy.deepcopy(metainfo_i['can_bus'][:3])
+                    tmp_angle = copy.deepcopy(metainfo_i['can_bus'][-1])
+                    metainfo_i['can_bus'][:3] -= prev_pos
+                    metainfo_i['can_bus'][-1] -= prev_angle
+                    prev_pos = copy.deepcopy(tmp_pos)
+                    prev_angle = copy.deepcopy(tmp_angle)
             metas_map[i].set_metainfo(metainfo_i)
         queue[-1]['inputs']['img'] = torch.stack(imgs_list)
         queue[-1]['data_samples'] = metas_map

@@ -212,7 +212,6 @@ class BEVFormer(MVXTwoStageDetector):
             batch_input_metas[queue_id] = [item.metainfo for item in batch_data_samples[queue_id]]
         prev_img_metas = copy.deepcopy(batch_input_metas)
         prev_bev = self.obtain_history_bev(prev_img, prev_img_metas)
-
         img_metas = batch_input_metas[len_queue-1]
         if not img_metas[0]['prev_bev_exists']:
             prev_bev = None
@@ -227,64 +226,109 @@ class BEVFormer(MVXTwoStageDetector):
     def aug_test(self, batch_inputs_dict, batch_data_samples,  **kwargs):
         return self.predict(batch_inputs_dict, batch_data_samples,  **kwargs)
     
+    def add_pred_to_datasample(
+        self,
+        data_samples,
+        data_instances_3d = None,
+        data_instances_2d = None,
+    ):
+        """Convert results list to `Det3DDataSample`.
+
+        Subclasses could override it to be compatible for some multi-modality
+        3D detectors.
+
+        Args:
+            data_samples (list[:obj:`Det3DDataSample`]): The input data.
+            data_instances_3d (list[:obj:`InstanceData`], optional): 3D
+                Detection results of each sample.
+            data_instances_2d (list[:obj:`InstanceData`], optional): 2D
+                Detection results of each sample.
+
+        Returns:
+            list[:obj:`Det3DDataSample`]: Detection results of the
+            input. Each Det3DDataSample usually contains
+            'pred_instances_3d'. And the ``pred_instances_3d`` normally
+            contains following keys.
+
+            - scores_3d (Tensor): Classification scores, has a shape
+              (num_instance, )
+            - labels_3d (Tensor): Labels of 3D bboxes, has a shape
+              (num_instances, ).
+            - bboxes_3d (Tensor): Contains a tensor with shape
+              (num_instances, C) where C >=7.
+
+            When there are image prediction in some models, it should
+            contains  `pred_instances`, And the ``pred_instances`` normally
+            contains following keys.
+
+            - scores (Tensor): Classification scores of image, has a shape
+              (num_instance, )
+            - labels (Tensor): Predict Labels of 2D bboxes, has a shape
+              (num_instances, ).
+            - bboxes (Tensor): Contains a tensor with shape
+              (num_instances, 4).
+        """
+
+        assert (data_instances_2d is not None) or \
+               (data_instances_3d is not None),\
+               'please pass at least one type of data_samples'
+
+        if data_instances_2d is None:
+            data_instances_2d = [
+                InstanceData() for _ in range(len(data_instances_3d))
+            ]
+        if data_instances_3d is None:
+            data_instances_3d = [
+                InstanceData() for _ in range(len(data_instances_2d))
+            ]
+
+        queue_length = len(data_samples)
+        for i, data_sample in enumerate(data_samples[queue_length-1]):
+            data_sample.pred_instances_3d = data_instances_3d[i]
+            data_sample.pred_instances = data_instances_2d[i]
+        return data_samples
+    
     def predict(self, batch_inputs_dict,
                 batch_data_samples, **kwargs):
         img = batch_inputs_dict.get('imgs', None)
+        assert img.size(0) == 1, "only support batch size = 0 now."
         len_queue = img.size(1)
         img_metas = {}
         for queue_id in range(len_queue):
-            img_metas[queue_id] = [item.metainfo for item in batch_data_samples[queue_id]]
+            img_metas[queue_id] = [data_samples.metainfo for data_samples in batch_data_samples[queue_id]]
         for var, name in [(img_metas, 'img_metas')]:
             if not isinstance(var, dict):
                 raise TypeError('{} must be a dict, but got {}'.format(
                     name, type(var)))
-        if img_metas[0][0]['scene_token'] != self.prev_frame_info['scene_token']:
+        if self.prev_frame_info['scene_token']:
             # the first sample of each scene is truncated
             self.prev_frame_info['prev_bev'] = None
         # update idx
-        self.prev_frame_info['scene_token'] = img_metas[0][0]['scene_token']
+        self.prev_frame_info['scene_token'] = img_metas[len_queue-1][0]['scene_token']
 
         # do not use temporal information
         if not self.video_test_mode:
             self.prev_frame_info['prev_bev'] = None
 
         # Get the delta of ego position and angle between two timestamps.
-        tmp_pos = copy.deepcopy(img_metas[0][0]['can_bus'][:3])
-        tmp_angle = copy.deepcopy(img_metas[0][0]['can_bus'][-1])
+        tmp_pos = copy.deepcopy(img_metas[len_queue-1][0]['can_bus'][:3])
+        tmp_angle = copy.deepcopy(img_metas[len_queue-1][0]['can_bus'][-1])
         if self.prev_frame_info['prev_bev'] is not None:
-            img_metas[0][0]['can_bus'][:3] -= self.prev_frame_info['prev_pos']
-            img_metas[0][0]['can_bus'][-1] -= self.prev_frame_info['prev_angle']
+            img_metas[len_queue-1][0]['can_bus'][:3] -= self.prev_frame_info['prev_pos']
+            img_metas[len_queue-1][0]['can_bus'][-1] -= self.prev_frame_info['prev_angle']
         else:
-            img_metas[0][0]['can_bus'][-1] = 0
-            img_metas[0][0]['can_bus'][:3] = 0
+            img_metas[len_queue-1][0]['can_bus'][-1] = 0
+            img_metas[len_queue-1][0]['can_bus'][:3] = 0
 
-        new_prev_bev, bbox_results = self.simple_test(
-            img_metas[0], img[0], prev_bev=self.prev_frame_info['prev_bev'], **kwargs)
+        img = img[:, len_queue-1, ...]
+        img_metas = img_metas[len_queue-1]
+        img_feats = self.extract_feat(imgs=img, batch_input_metas=img_metas)
+        outs = self.pts_bbox_head(img_feats, img_metas, prev_bev=self.prev_frame_info['prev_bev'])
+        results_list_3d = self.pts_bbox_head.predict_by_feat(outs, img_metas, **kwargs)
+        detsamples = self.add_pred_to_datasample(batch_data_samples,
+                                                 results_list_3d)
         # During inference, we save the BEV features and ego motion of each timestamp.
         self.prev_frame_info['prev_pos'] = tmp_pos
         self.prev_frame_info['prev_angle'] = tmp_angle
-        self.prev_frame_info['prev_bev'] = new_prev_bev
-        return bbox_results
-
-    def simple_test_pts(self, x, img_metas, prev_bev=None, rescale=False):
-        """Test function"""
-        outs = self.pts_bbox_head(x, img_metas, prev_bev=prev_bev)
-
-        bbox_list = self.pts_bbox_head.get_bboxes(
-            outs, img_metas, rescale=rescale)
-        bbox_results = [
-            bbox3d2result(bboxes, scores, labels)
-            for bboxes, scores, labels in bbox_list
-        ]
-        return outs['bev_embed'], bbox_results
-
-    def simple_test(self, img_metas, img=None, prev_bev=None, rescale=False):
-        """Test function without augmentaiton."""
-        img_feats = self.extract_feat(imgs=img, batch_input_metas=img_metas)
-
-        bbox_list = [dict() for i in range(len(img_metas))]
-        new_prev_bev, bbox_pts = self.simple_test_pts(
-            img_feats, img_metas, prev_bev, rescale=rescale)
-        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
-            result_dict['pts_bbox'] = pts_bbox
-        return new_prev_bev, bbox_list
+        self.prev_frame_info['prev_bev'] = outs['bev_embed']
+        return detsamples[len_queue-1]
